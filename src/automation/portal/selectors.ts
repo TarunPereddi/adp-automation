@@ -8,19 +8,19 @@ export interface SelectorDefinition {
 // Fixture selectors are stable and intentionally separate from live evidence.
 export const selectors = {
   username: {
-    selector: 'input[placeholder="Enter your email or username"]',
-    verified: false,
-    evidence: 'Migrated from unfinished Claude implementation; live verification required',
+    selector: 'sdf-input[formcontrolname="userName"]',
+    verified: true,
+    evidence: 'Live login host verified 2026-07-21 at /ng/login',
   },
   password: {
-    selector: 'input[placeholder="Password"]',
-    verified: false,
-    evidence: 'Migrated from unfinished Claude implementation; live verification required',
+    selector: 'sdf-input[formcontrolname="password"]',
+    verified: true,
+    evidence: 'Live login host verified 2026-07-21 at /ng/login',
   },
   loginButton: {
     selector: '.login-page__primary-button',
-    verified: false,
-    evidence: 'Migrated from unfinished Claude implementation; live verification required',
+    verified: true,
+    evidence: 'Live Sign In button verified 2026-07-21 at /ng/login',
   },
   authenticatedMarker: {
     selector: 'sdf-button[aria-label="Punch"]',
