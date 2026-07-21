@@ -111,6 +111,9 @@ export class PortalAdapter {
     if (challenge !== 'NONE') {
       return { ok: false, challenge, failureCategory: challengeCategory(challenge) };
     }
+    await waitForDeep(this.page, selectors.authenticatedMarker.selector, 30_000).catch(
+      () => undefined,
+    );
     const state = await this.readAttendanceState();
     return state.authenticated
       ? { ok: true, value: state, challenge: 'NONE' }
