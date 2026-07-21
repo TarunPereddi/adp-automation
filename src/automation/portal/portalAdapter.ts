@@ -156,14 +156,16 @@ export class PortalAdapter {
     }
     const punchInTime = normalizedPunchTime(punchInText);
     const punchOutTime = normalizedPunchTime(punchOutText);
+    const punchActionText = await this.readStat(selectors.punchButton.selector);
     const hasPunchAction = Boolean(await deepQuery(this.page, selectors.punchButton.selector));
     const evidence: string[] = [];
     if (punchInText) evidence.push(`punch-in:${punchInText.slice(0, 40)}`);
     if (punchOutText) evidence.push(`punch-out:${punchOutText.slice(0, 40)}`);
+    if (punchActionText) evidence.push(`punch-action:${punchActionText.slice(0, 40)}`);
     if (hasPunchAction) evidence.push('punch-action-available');
     return {
       authenticated,
-      punchedIn: Boolean(punchInTime),
+      punchedIn: Boolean(punchInTime) || /^punch out$/i.test(punchActionText),
       punchedOut: Boolean(punchOutTime),
       punchInTime,
       punchOutTime,
@@ -180,6 +182,7 @@ export class PortalAdapter {
       };
     }
     const before = await this.readAttendanceState();
+    const beforePunchAction = await this.readStat(selectors.punchButton.selector);
     const alreadyDone = action === 'PUNCH_IN' ? before.punchedIn : before.punchedOut;
     if (alreadyDone) return { ok: true, value: before };
     const button = await deepQuery(this.page, selectors.punchButton.selector);
@@ -215,7 +218,7 @@ export class PortalAdapter {
         selectors.confirmPunchButton.selector,
       )
       .catch(() => undefined);
-    const after = await this.waitForAttendanceState(action, 20_000);
+    const after = await this.waitForAttendanceState(action, beforePunchAction, 20_000);
     const verified = action === 'PUNCH_IN' ? after.punchedIn : after.punchedOut;
     return verified
       ? { ok: true, value: after }
@@ -235,6 +238,7 @@ export class PortalAdapter {
 
   private async waitForAttendanceState(
     action: AttendanceAction,
+    beforePunchAction: string,
     timeoutMs: number,
   ): Promise<AttendanceState> {
     const deadline = Date.now() + timeoutMs;
@@ -242,6 +246,16 @@ export class PortalAdapter {
     while (Date.now() < deadline) {
       const verified = action === 'PUNCH_IN' ? state.punchedIn : state.punchedOut;
       if (verified) return state;
+      if (action === 'PUNCH_OUT' && /^punch out$/i.test(beforePunchAction)) {
+        const currentPunchAction = await this.readStat(selectors.punchButton.selector);
+        if (currentPunchAction && !/^punch out$/i.test(currentPunchAction)) {
+          return {
+            ...state,
+            punchedOut: true,
+            evidence: [...state.evidence, `punch-action-transition:${currentPunchAction}`],
+          };
+        }
+      }
       await new Promise((resolve) => setTimeout(resolve, 500));
       state = await this.readAttendanceState();
     }
