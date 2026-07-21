@@ -6,10 +6,37 @@ import { deepQuery, typeDeep, waitForDeep } from './shadowDom.js';
 import { selectors } from './selectors.js';
 
 export class PortalAdapter {
+  private readonly diagnostics: string[] = [];
+
   constructor(
     private readonly page: Page,
     private readonly config: AppConfig & { portal: AppConfig['portal'] & { username: string } },
-  ) {}
+  ) {
+    page.on('console', (message) =>
+      this.recordDiagnostic(`console:${message.type()}:${message.text()}`),
+    );
+    page.on('pageerror', (error) =>
+      this.recordDiagnostic(`pageerror:${error instanceof Error ? error.message : String(error)}`),
+    );
+    page.on('requestfailed', (request) =>
+      this.recordDiagnostic(
+        `requestfailed:${request.failure()?.errorText ?? 'unknown'}:${request.url()}`,
+      ),
+    );
+    page.on('response', (response) => {
+      if (response.status() >= 400)
+        this.recordDiagnostic(`response:${response.status()}:${response.url()}`);
+    });
+  }
+
+  getDiagnostics(): string[] {
+    return this.diagnostics.slice(-20);
+  }
+
+  private recordDiagnostic(value: string): void {
+    this.diagnostics.push(value.slice(0, 500));
+    if (this.diagnostics.length > 50) this.diagnostics.shift();
+  }
 
   async openLogin(): Promise<void> {
     const readySelector = `${selectors.username.selector}, ${selectors.authenticatedMarker.selector}`;

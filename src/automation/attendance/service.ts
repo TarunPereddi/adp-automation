@@ -56,6 +56,7 @@ export class AttendanceService {
     }
     let manager: BrowserManager | undefined;
     let page: Page | undefined;
+    let portal: PortalAdapter | undefined;
     try {
       if (!(await runs.start(run))) {
         logger.info('Idempotent attendance run already exists', { action, dateKey });
@@ -70,7 +71,7 @@ export class AttendanceService {
 
       manager = new BrowserManager(config);
       page = await manager.open();
-      const portal = new PortalAdapter(page, config);
+      portal = new PortalAdapter(page, config);
       await portal.openLogin();
       if (!(await manager.verifyConfiguredLocation(page)))
         throw new Error('Browser location verification failed');
@@ -89,6 +90,7 @@ export class AttendanceService {
           challenge: login.challenge,
           message: login.message,
           portalUrl: page.url(),
+          browserDiagnostics: portal.getDiagnostics(),
         });
         process.exitCode = 1;
         return;
@@ -153,7 +155,13 @@ export class AttendanceService {
           sanitizedMessage: message,
         })
         .catch(() => undefined);
-      await captureFailure(page, { runId, action, error: message }).catch(() => undefined);
+      await captureFailure(page, {
+        runId,
+        action,
+        error: message,
+        portalUrl: page?.url(),
+        browserDiagnostics: portal?.getDiagnostics(),
+      }).catch(() => undefined);
       process.exitCode = 1;
     } finally {
       await manager?.close().catch(() => undefined);
