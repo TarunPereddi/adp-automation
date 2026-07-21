@@ -21,6 +21,7 @@ export class BrowserManager {
       ],
     });
     const page = await this.browser.newPage();
+    await page.setCacheEnabled(false);
     await page.setViewport({ width: 1366, height: 768 });
     const context = this.browser.defaultBrowserContext();
     await context.overridePermissions(this.config.portal.origin, ['geolocation']);

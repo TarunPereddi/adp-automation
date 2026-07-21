@@ -12,10 +12,24 @@ export class PortalAdapter {
   ) {}
 
   async openLogin(): Promise<void> {
-    await this.page.goto(this.config.portal.loginUrl, {
-      waitUntil: 'networkidle2',
-      timeout: 30_000,
-    });
+    const readySelector = `${selectors.username.selector}, ${selectors.authenticatedMarker.selector}`;
+    let lastError: unknown;
+    for (let attempt = 1; attempt <= 3; attempt += 1) {
+      try {
+        await this.page.goto(this.config.portal.loginUrl, {
+          waitUntil: 'domcontentloaded',
+          timeout: 30_000,
+        });
+        await waitForDeep(this.page, readySelector, 20_000);
+        return;
+      } catch (error) {
+        lastError = error;
+        if (attempt < 3) await new Promise((resolve) => setTimeout(resolve, attempt * 2_000));
+      }
+    }
+    throw lastError instanceof Error
+      ? lastError
+      : new Error('ADP login page did not become interactive');
   }
 
   async login(password: string): Promise<PortalResult<AttendanceState>> {
