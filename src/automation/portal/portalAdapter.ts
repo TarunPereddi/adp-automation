@@ -262,20 +262,25 @@ export class PortalAdapter {
         this.page,
         '[role="combobox"][aria-label="Page Size"]',
       );
-      await pageSize?.click();
-      const showAll = await waitForDeepVisible(
-        this.page,
-        '[role="option"][aria-posinset="4"]',
-        5_000,
-      );
-      await showAll.click();
-      await this.page.waitForFunction(
-        () =>
-          document
-            .querySelector('[role="combobox"][aria-label="Page Size"]')
-            ?.textContent?.trim() === '100',
-        { timeout: 5_000 },
-      );
+      // The paginator is rendered inside ADP web-component shadow roots. Expanding
+      // to 100 rows is useful but not required for today's newest leave request,
+      // so a paginator interaction failure must not discard otherwise valid rows.
+      await pageSize
+        ?.click()
+        .then(async () => {
+          const showAll = await waitForDeepVisible(
+            this.page,
+            '[role="option"][aria-posinset="4"]',
+            5_000,
+          );
+          await showAll.click();
+          await new Promise((resolve) => setTimeout(resolve, 1_000));
+        })
+        .catch((error: unknown) => {
+          this.recordDiagnostic(
+            `leave-page-size:${error instanceof Error ? error.message : String(error)}`,
+          );
+        });
       await this.page
         .waitForFunction(() => !document.body.innerText.includes('Loading'), { timeout: 15_000 })
         .catch(() => undefined);

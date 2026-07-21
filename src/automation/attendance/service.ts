@@ -144,6 +144,12 @@ export class AttendanceService {
 
       const liveLeave = await portal.getLeaveStatus(dateKey);
       const leave = liveLeave;
+      logger.info('Live leave status checked', {
+        status: leave.status,
+        verified: leave.verified,
+        source: leave.source,
+        reason: leave.reason,
+      });
       const portalWorkdayConfirmed =
         portalState.evidence.some((item) => item.endsWith('action-available')) && leave.verified;
       const calendar = combineCalendar(holiday, leave, portalWorkdayConfirmed);
