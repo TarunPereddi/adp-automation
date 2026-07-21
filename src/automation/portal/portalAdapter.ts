@@ -252,12 +252,18 @@ export class PortalAdapter {
     const checkedAt = new Date();
     const expiresAt = new Date(checkedAt.getTime() + 6 * 60 * 60 * 1000);
     try {
-      const leaveDetailsLink = await waitForDeepVisible(
+      const leaveDetailsButton = await waitForDeepVisible(
         this.page,
-        'a[href*="/leaves/view"]',
+        'sdf-button[aria-label="View leave details"]',
         30_000,
       );
-      await leaveDetailsLink.click();
+      await leaveDetailsButton.click();
+      const viewAll = await waitForDeepVisible(
+        this.page,
+        'sdf-button[aria-label="View all"]',
+        30_000,
+      );
+      await viewAll.click();
       await waitForDeepVisible(this.page, '[role="combobox"][aria-label="Page Size"]', 30_000);
       const pageSize = await deepQueryVisible(
         this.page,
