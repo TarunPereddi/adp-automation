@@ -73,7 +73,7 @@ jobs:
         with:
           node-version: '24'
           cache: npm
-      - run: npm ci
+      - run: npm ci --include=dev
       - name: Run supported diagnostic or action
         shell: bash
         run: |
