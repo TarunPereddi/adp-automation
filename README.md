@@ -2,7 +2,7 @@
 
 Fail-closed attendance automation for one authorized ADP SecurTime account. Scheduled work runs on GitHub-hosted runners; encrypted state, locks, and run history live in MongoDB Atlas. The dashboard and credential tools run locally on Windows.
 
-> **Production is intentionally disabled.** Live selectors, calendar evidence, and portal state transitions have not been validated against the real account. Keep `AUTOMATION_ENABLED=false`, `DRY_RUN=true`, and `PORTAL_SELECTORS_VERIFIED=false` until the validation checklist in [SETUP.md](SETUP.md) is complete.
+> **Production attendance is enabled.** Punch In and Punch Out, IST browser time, Hyderabad location, and positive portal-state verification were validated live on 2026-07-22. Password rotation remains disabled until its separate portal flow is recorded and verified.
 
 ## Architecture
 
@@ -50,6 +50,9 @@ Scheduled jobs use `npm ci`, read-only repository permission, ten-minute timeout
 - Exact coordinates are required through protected environment values and never logged.
 - Passwords are encrypted with versioned AES-256-GCM payloads and a key that is not stored in MongoDB.
 - Only current and previous credentials are retained after a completed rotation.
+- Weekend and configured mandatory-holiday checks run before opening the portal.
+- Live ADP leave requests block attendance when the current date is covered by an `Approved` or `Submitted` request; `Withdrawn` requests do not block.
+- Optional holidays are treated as workdays unless a leave request covers the date.
 - CAPTCHA, MFA, OTP, email verification, and unknown-device challenges stop the run.
 - The system does not bypass portal security controls.
 - Rotation cannot execute until its real policy, route, selectors, and state transition are validated.

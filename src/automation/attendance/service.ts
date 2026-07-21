@@ -34,7 +34,7 @@ export class AttendanceService {
 
   async run(action: AttendanceAction, now = new Date()): Promise<void> {
     const { config, locks, runs } = this.dependencies;
-    const { dateKey } = istParts(now);
+    const { dateKey, weekday } = istParts(now);
     const runId = randomUUID();
     const baseKey = `${config.portal.accountId}:${dateKey}:${action}`;
     const explicitManualRun = process.env.MANUAL_ACTION === action && config.github.runId;
@@ -65,6 +65,38 @@ export class AttendanceService {
     try {
       if (!(await runs.start(run))) {
         logger.info('Idempotent attendance run already exists', { action, dateKey });
+        return;
+      }
+      if (weekday === 0 || weekday === 6) {
+        await runs.complete(runId, {
+          status: 'SKIPPED',
+          skipReason: 'WEEKEND',
+          sanitizedMessage: 'Weekend preflight blocked portal login',
+        });
+        logger.info('Attendance safely skipped before login', { action, reason: 'WEEKEND' });
+        return;
+      }
+      const holiday = await this.dependencies.holidays.getHolidayStatus(dateKey);
+      if (holiday.status === 'HOLIDAY' && holiday.verified) {
+        await runs.complete(runId, {
+          status: 'SKIPPED',
+          skipReason: 'HOLIDAY',
+          sanitizedMessage: holiday.source,
+        });
+        logger.info('Attendance safely skipped before login', { action, reason: 'HOLIDAY' });
+        return;
+      }
+      const configuredLeave = await this.dependencies.leaves.getLeaveStatus(dateKey);
+      if (configuredLeave.status === 'LEAVE' && configuredLeave.verified) {
+        await runs.complete(runId, {
+          status: 'SKIPPED',
+          skipReason: 'APPROVED_LEAVE',
+          sanitizedMessage: configuredLeave.source,
+        });
+        logger.info('Attendance safely skipped before login', {
+          action,
+          reason: 'APPROVED_LEAVE',
+        });
         return;
       }
       const credential = await this.dependencies.credentials.getCandidates(config.portal.accountId);
@@ -110,11 +142,10 @@ export class AttendanceService {
         }
       }
 
-      const holiday = await this.dependencies.holidays.getHolidayStatus(dateKey);
-      const leave = await this.dependencies.leaves.getLeaveStatus(dateKey);
-      const portalWorkdayConfirmed = portalState.evidence.some((item) =>
-        item.endsWith('action-available'),
-      );
+      const liveLeave = await portal.getLeaveStatus(dateKey);
+      const leave = liveLeave;
+      const portalWorkdayConfirmed =
+        portalState.evidence.some((item) => item.endsWith('action-available')) && leave.verified;
       const calendar = combineCalendar(holiday, leave, portalWorkdayConfirmed);
       const decision = decideAttendance({
         action,

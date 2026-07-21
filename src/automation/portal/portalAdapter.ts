@@ -1,6 +1,12 @@
 import type { Page } from 'puppeteer';
 import type { AppConfig } from '../../config/config.js';
-import type { AttendanceAction, AttendanceState, PortalResult } from '../../types/domain.js';
+import { findBlockingLeave, type LeaveRecord } from '../../calendar/leaveRecords.js';
+import type {
+  AttendanceAction,
+  AttendanceState,
+  CalendarResult,
+  PortalResult,
+} from '../../types/domain.js';
 import { classifyChallenge } from './challenges.js';
 import {
   deepQuery,
@@ -242,6 +248,91 @@ export class PortalAdapter {
         };
   }
 
+  async getLeaveStatus(dateKey: string): Promise<CalendarResult> {
+    const checkedAt = new Date();
+    const expiresAt = new Date(checkedAt.getTime() + 6 * 60 * 60 * 1000);
+    let result: CalendarResult;
+    try {
+      await this.page.goto(`${this.config.portal.origin}/ng/leaves/view`, {
+        waitUntil: 'domcontentloaded',
+        timeout: 30_000,
+      });
+      await waitForDeepVisible(this.page, '[role="combobox"][aria-label="Page Size"]', 30_000);
+      const pageSize = await deepQueryVisible(
+        this.page,
+        '[role="combobox"][aria-label="Page Size"]',
+      );
+      await pageSize?.click();
+      const showAll = await waitForDeepVisible(
+        this.page,
+        '[role="option"][aria-posinset="4"]',
+        5_000,
+      );
+      await showAll.click();
+      await this.page.waitForFunction(
+        () =>
+          document
+            .querySelector('[role="combobox"][aria-label="Page Size"]')
+            ?.textContent?.trim() === '100',
+        { timeout: 5_000 },
+      );
+      await this.page
+        .waitForFunction(() => !document.body.innerText.includes('Loading'), { timeout: 15_000 })
+        .catch(() => undefined);
+      const records = await this.readLeaveRecords();
+      const blocking = findBlockingLeave(records, dateKey);
+      result = blocking
+        ? {
+            status: 'LEAVE',
+            verified: true,
+            source: 'portal-leave-requests',
+            checkedAt,
+            expiresAt,
+            reason: `${blocking.status} ${blocking.type} from ${blocking.startDate} to ${blocking.endDate}`,
+          }
+        : {
+            status: 'WORKDAY',
+            verified: true,
+            source: 'portal-leave-requests',
+            checkedAt,
+            expiresAt,
+            reason: 'No Approved or Submitted leave covers this date',
+          };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown leave lookup failure';
+      this.recordDiagnostic(`leave-lookup:${message}`);
+      result = {
+        status: 'UNKNOWN',
+        verified: false,
+        source: 'portal-leave-requests',
+        checkedAt,
+        expiresAt,
+        reason: 'Live leave lookup failed',
+      };
+    }
+
+    try {
+      await this.page.goto(`${this.config.portal.origin}/ng/dashboard`, {
+        waitUntil: 'domcontentloaded',
+        timeout: 30_000,
+      });
+      await waitForDeepVisible(this.page, selectors.authenticatedMarker.selector, 30_000);
+    } catch (error) {
+      this.recordDiagnostic(
+        `dashboard-restore:${error instanceof Error ? error.message : String(error)}`,
+      );
+      return {
+        status: 'UNKNOWN',
+        verified: false,
+        source: 'portal-leave-requests',
+        checkedAt,
+        expiresAt,
+        reason: 'Dashboard could not be restored after leave lookup',
+      };
+    }
+    return result;
+  }
+
   private async readStat(selector: string): Promise<string> {
     const element = await deepQuery(this.page, selector);
     return element
@@ -254,6 +345,30 @@ export class PortalAdapter {
     return element
       ? element.evaluate((target) => target.textContent?.trim().replace(/\s+/g, ' ') ?? '')
       : '';
+  }
+
+  private async readLeaveRecords(): Promise<LeaveRecord[]> {
+    return this.page.evaluate(() => {
+      const roots: Array<Document | ShadowRoot> = [document];
+      const records: LeaveRecord[] = [];
+      while (roots.length) {
+        const root = roots.pop()!;
+        for (const element of root.querySelectorAll('*')) {
+          if (element.shadowRoot) roots.push(element.shadowRoot);
+          if (element.getAttribute('role') !== 'row') continue;
+          const value = (column: string) =>
+            element.querySelector(`[role="gridcell"][col-id="${column}"]`)?.textContent?.trim() ??
+            '';
+          const startDate = value('startDate');
+          const endDate = value('endDate');
+          const status = value('status');
+          if (/^\d{4}-\d{2}-\d{2}$/.test(startDate) && endDate && status) {
+            records.push({ startDate, endDate, type: value('leaveTypeName'), status });
+          }
+        }
+      }
+      return records;
+    });
   }
 
   private async waitForAttendanceState(
