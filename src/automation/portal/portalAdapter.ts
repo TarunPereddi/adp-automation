@@ -2,7 +2,7 @@ import type { Page } from 'puppeteer';
 import type { AppConfig } from '../../config/config.js';
 import type { AttendanceAction, AttendanceState, PortalResult } from '../../types/domain.js';
 import { classifyChallenge } from './challenges.js';
-import { deepQuery, typeDeep, waitForDeep } from './shadowDom.js';
+import { deepQuery, deepValue, typeDeep, waitForDeep } from './shadowDom.js';
 import { selectors } from './selectors.js';
 
 export class PortalAdapter {
@@ -67,8 +67,27 @@ export class PortalAdapter {
       return { ok: false, challenge: before, failureCategory: challengeCategory(before) };
     }
     try {
-      await typeDeep(this.page, selectors.username.selector, this.config.portal.username);
-      await typeDeep(this.page, selectors.password.selector, password);
+      let fieldsReady = false;
+      for (let attempt = 1; attempt <= 3; attempt += 1) {
+        await typeDeep(this.page, selectors.username.selector, this.config.portal.username);
+        await typeDeep(this.page, selectors.password.selector, password);
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        fieldsReady =
+          (await deepValue(this.page, selectors.username.selector)) ===
+            this.config.portal.username &&
+          (await deepValue(this.page, selectors.password.selector)) === password;
+        if (fieldsReady) break;
+      }
+      if (!fieldsReady) throw new Error('Login fields did not retain their values');
+      await waitForDeep(this.page, selectors.loginButton.selector);
+      await this.page.waitForFunction(
+        (target) => {
+          const element = document.querySelector(target);
+          return element && !element.hasAttribute('disabled');
+        },
+        { timeout: 10_000 },
+        selectors.loginButton.selector,
+      );
       const button = await waitForDeep(this.page, selectors.loginButton.selector);
       await button.click();
       await this.page

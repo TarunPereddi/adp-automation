@@ -49,3 +49,13 @@ export async function typeDeep(page: Page, selector: string, value: string): Pro
   await element.click({ count: 3 });
   await element.type(value, { delay: 25 });
 }
+
+export async function deepValue(page: Page, selector: string): Promise<string | undefined> {
+  const element = await deepQuery(page, selector);
+  if (!element) return undefined;
+  return element.evaluate((target) =>
+    target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement
+      ? target.value
+      : undefined,
+  );
+}
