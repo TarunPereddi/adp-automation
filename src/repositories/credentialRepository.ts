@@ -56,6 +56,28 @@ export class CredentialRepository {
       throw new Error('Credential already exists; refusing to overwrite it');
   }
 
+  async replaceCurrent(accountId: string, password: string): Promise<void> {
+    const record = await this.collection.findOne({ accountId });
+    if (!record) throw new Error('Credential does not exist; seed it before replacement');
+    const now = new Date();
+    const result = await this.collection.updateOne(
+      { accountId, credentialVersion: record.credentialVersion },
+      {
+        $set: {
+          currentPasswordEncrypted: encrypt(password, this.encodedKey),
+          previousPasswordEncrypted: record.currentPasswordEncrypted,
+          credentialVersion: record.credentialVersion + 1,
+          rotationStatus: 'COMPLETED',
+          rotatedAt: now,
+          updatedAt: now,
+        },
+      },
+    );
+    if (result.modifiedCount !== 1) {
+      throw new Error('Credential version conflict; replacement was not written');
+    }
+  }
+
   async commitRotation(options: {
     accountId: string;
     expectedVersion: number;

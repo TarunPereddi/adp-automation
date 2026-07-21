@@ -16,6 +16,7 @@ on:
           - PUNCH_IN
           - PUNCH_OUT
           - ROTATE_PASSWORD
+          - SYNC_CREDENTIAL
           - VERIFY_SESSION
       confirmation:
         description: Enter I_UNDERSTAND for a live attendance or rotation action
@@ -39,7 +40,7 @@ jobs:
           CONFIRMATION: ${{ inputs.confirmation }}
         run: |
           case "$ACTION" in
-            PUNCH_IN|PUNCH_OUT|ROTATE_PASSWORD)
+            PUNCH_IN|PUNCH_OUT|ROTATE_PASSWORD|SYNC_CREDENTIAL)
               test "$CONFIRMATION" = "I_UNDERSTAND" || { echo "Live action requires confirmation=I_UNDERSTAND"; exit 1; }
               ;;
           esac
@@ -56,6 +57,7 @@ jobs:
       MONGODB_URI: ${{ secrets.MONGODB_URI }}
       MONGODB_DATABASE: ${{ secrets.MONGODB_DATABASE }}
       ADP_SECURITY_ANSWERS_JSON: ${{ secrets.ADP_SECURITY_ANSWERS_JSON }}
+      ADP_PASSWORD: ${{ secrets.ADP_PASSWORD }}
       ATTENDANCE_LATITUDE: ${{ secrets.ATTENDANCE_LATITUDE }}
       ATTENDANCE_LONGITUDE: ${{ secrets.ATTENDANCE_LONGITUDE }}
       ATTENDANCE_LOCATION_ACCURACY_METERS: ${{ secrets.ATTENDANCE_LOCATION_ACCURACY_METERS }}
@@ -82,6 +84,8 @@ jobs:
             PUNCH_OUT) AUTOMATION_ACTION=PUNCH_OUT npm run job ;;
             DRY_RUN|CHECK_LOGIN|CHECK_CALENDAR|CHECK_ATTENDANCE)
               AUTOMATION_ACTION=PUNCH_IN npm run job ;;
+            SYNC_CREDENTIAL)
+              CREDENTIAL_REPLACEMENT_CONFIRM=I_UNDERSTAND npm run credential:replace ;;
             ROTATE_PASSWORD|VERIFY_SESSION)
               echo "This action remains fail-closed until the corresponding live portal flow is verified."
               exit 2

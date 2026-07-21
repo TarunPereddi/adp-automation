@@ -25,6 +25,19 @@ async function main(): Promise<void> {
       process.stdout.write('Encrypted credential created; secret was not displayed.\n');
       return;
     }
+    if (command === 'replace') {
+      if (process.env.CREDENTIAL_REPLACEMENT_CONFIRM !== 'I_UNDERSTAND') {
+        throw new Error(
+          'Credential replacement requires CREDENTIAL_REPLACEMENT_CONFIRM=I_UNDERSTAND',
+        );
+      }
+      const password = process.env.ADP_PASSWORD;
+      if (!password) throw new Error('ADP_PASSWORD is required for credential replacement');
+      await credentials.replaceCurrent(config.portal.accountId, password);
+      await auditAccess(db, config.portal.accountId, 'CREDENTIAL_REPLACED');
+      process.stdout.write('Encrypted credential replaced; secret was not displayed.\n');
+      return;
+    }
     const metadata = await credentials.metadata(config.portal.accountId);
     if (!metadata) throw new Error('Credential does not exist');
     if (command === 'status') {

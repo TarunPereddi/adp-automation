@@ -88,6 +88,7 @@ export class AttendanceService {
           failureCategory: login.failureCategory,
           challenge: login.challenge,
         });
+        process.exitCode = 1;
         return;
       }
 

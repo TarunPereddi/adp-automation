@@ -12,6 +12,7 @@
     "dashboard": "tsx src/dashboard/server.ts",
     "credential:status": "tsx src/cli/credential.ts status",
     "credential:copy": "tsx src/cli/credential.ts copy",
+    "credential:replace": "tsx src/cli/credential.ts replace",
     "credential:seed": "tsx src/cli/credential.ts seed",
     "credential:show": "tsx src/cli/credential.ts show",
     "credential:verify": "tsx src/cli/credential.ts verify",

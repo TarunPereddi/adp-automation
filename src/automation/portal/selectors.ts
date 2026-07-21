@@ -23,9 +23,9 @@ export const selectors = {
     evidence: 'Migrated from unfinished Claude implementation; live verification required',
   },
   authenticatedMarker: {
-    selector: '[data-testid="attendance-dashboard"], attendance-dashboard, .attendance-dashboard',
-    verified: false,
-    evidence: 'Positive marker requires live portal validation',
+    selector: 'sdf-button[aria-label="Punch"]',
+    verified: true,
+    evidence: 'Live dashboard verified 2026-07-21 at /ng/dashboard',
   },
   punchInButton: {
     selector: '[data-testid="punch-in"], button[aria-label="Punch In"]',

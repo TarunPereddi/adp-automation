@@ -59,7 +59,7 @@ Create these static repository secrets:
 - `ATTENDANCE_LONGITUDE`
 - `ATTENDANCE_LOCATION_ACCURACY_METERS`
 
-Do not create `ADP_PASSWORD`, `GH_TOKEN`, or a changing-password secret. MongoDB is the encrypted source of truth.
+Do not retain `ADP_PASSWORD`, `GH_TOKEN`, or a changing-password secret. MongoDB is the encrypted source of truth. For a one-time credential sync, create `ADP_PASSWORD`, run the confirmed `SYNC_CREDENTIAL` workflow, and delete the secret immediately after the run succeeds.
 
 Create variables with safe defaults:
 
