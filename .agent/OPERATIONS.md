@@ -90,5 +90,6 @@ The external Codex automation is named `ADP workflow inactivity watchdog`. It ru
 - Full leave-table workday verification: https://github.com/TarunPereddi/adp-automation/actions/runs/29865053121
 - Completed password rotation: https://github.com/TarunPereddi/adp-automation/actions/runs/29866514221
 - Independent new-password session verification: https://github.com/TarunPereddi/adp-automation/actions/runs/29866720686
+- Post-cleanup Linux install/build/live diagnostic: https://github.com/TarunPereddi/adp-automation/actions/runs/29868676585
 
 These runs prove the 2026-07-22 baseline; they do not waive revalidation after a portal redesign.
