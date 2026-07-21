@@ -88,7 +88,7 @@ For each selector in `src/automation/portal/selectors.ts`, capture sanitized evi
 9. Password settings route, policy, submission, and fresh-login verification.
 10. Whether the portal officially permits remembered/trusted sessions.
 
-Do not set `PORTAL_SELECTORS_VERIFIED=true` until all attendance selectors and positive-state checks are proven. The password-rotation adapter is deliberately not wired to a live route until its flow is proven.
+Do not set `PORTAL_SELECTORS_VERIFIED=true` until all attendance and password-rotation selectors and positive-state checks are proven.
 
 ## 5. Dry run and activation
 
