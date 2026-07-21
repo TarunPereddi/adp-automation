@@ -317,7 +317,9 @@ export class PortalAdapter {
     }
 
     try {
-      await this.page.goto(`${this.config.portal.origin}/ng/dashboard`, {
+      // A fresh navigation to /ng/dashboard can make SecurTime discard the
+      // authenticated SPA session. Returning through browser history preserves it.
+      await this.page.goBack({
         waitUntil: 'domcontentloaded',
         timeout: 30_000,
       });
