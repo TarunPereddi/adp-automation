@@ -27,6 +27,11 @@ export const selectors = {
     verified: true,
     evidence: 'Live dashboard verified 2026-07-21 at /ng/dashboard',
   },
+  punchInformationButton: {
+    selector: 'sdf-button[aria-label="Punch information"]',
+    verified: true,
+    evidence: 'Live Punch Information expand control verified 2026-07-22',
+  },
   punchButton: {
     selector: 'sdf-button[aria-label="Punch"]',
     verified: true,

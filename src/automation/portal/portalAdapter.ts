@@ -129,10 +129,24 @@ export class PortalAdapter {
     const authenticated = Boolean(
       await deepQuery(this.page, selectors.authenticatedMarker.selector),
     );
-    const [punchInText, punchOutText] = await Promise.all([
+    let [punchInText, punchOutText] = await Promise.all([
       this.readStat(selectors.punchInTime.selector),
       this.readStat(selectors.punchOutTime.selector),
     ]);
+    if (authenticated && !punchInText && !punchOutText) {
+      const informationButton = await deepQuery(
+        this.page,
+        selectors.punchInformationButton.selector,
+      );
+      if (informationButton) {
+        await informationButton.click();
+        await waitForDeep(this.page, selectors.punchInTime.selector, 5_000).catch(() => undefined);
+        [punchInText, punchOutText] = await Promise.all([
+          this.readStat(selectors.punchInTime.selector),
+          this.readStat(selectors.punchOutTime.selector),
+        ]);
+      }
+    }
     const punchInTime = normalizedPunchTime(punchInText);
     const punchOutTime = normalizedPunchTime(punchOutText);
     const hasPunchAction = Boolean(await deepQuery(this.page, selectors.punchButton.selector));
@@ -179,6 +193,21 @@ export class PortalAdapter {
       };
     }
     await confirm.click();
+    await this.page
+      .waitForFunction(
+        (target) => {
+          const visit = (root: Document | ShadowRoot): boolean => {
+            if (root.querySelector(target)) return true;
+            return [...root.querySelectorAll('*')].some(
+              (element) => element.shadowRoot && visit(element.shadowRoot),
+            );
+          };
+          return !visit(document);
+        },
+        { timeout: 5_000 },
+        selectors.confirmPunchButton.selector,
+      )
+      .catch(() => undefined);
     const after = await this.waitForAttendanceState(action, 20_000);
     const verified = action === 'PUNCH_IN' ? after.punchedIn : after.punchedOut;
     return verified
