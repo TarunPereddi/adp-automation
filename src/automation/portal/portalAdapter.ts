@@ -252,10 +252,12 @@ export class PortalAdapter {
     const checkedAt = new Date();
     const expiresAt = new Date(checkedAt.getTime() + 6 * 60 * 60 * 1000);
     try {
-      await this.page.goto(`${this.config.portal.origin}/ng/leaves/view`, {
-        waitUntil: 'domcontentloaded',
-        timeout: 30_000,
-      });
+      const leaveDetailsLink = await waitForDeepVisible(
+        this.page,
+        'a[href*="/leaves/view"]',
+        30_000,
+      );
+      await leaveDetailsLink.click();
       await waitForDeepVisible(this.page, '[role="combobox"][aria-label="Page Size"]', 30_000);
       const pageSize = await deepQueryVisible(
         this.page,
@@ -311,7 +313,7 @@ export class PortalAdapter {
         source: 'portal-leave-requests',
         checkedAt,
         expiresAt,
-        reason: 'Live leave lookup failed',
+        reason: `Live leave lookup failed: ${message.slice(0, 160)}`,
       };
     }
   }
