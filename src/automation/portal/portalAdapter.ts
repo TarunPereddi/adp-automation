@@ -194,7 +194,7 @@ export class PortalAdapter {
       };
     await button.click();
     const confirm = await waitForDeep(this.page, selectors.confirmPunchButton.selector, 10_000);
-    const location = await this.readStat(selectors.punchLocation.selector);
+    const location = await this.waitForMeaningfulStat(selectors.punchLocation.selector, 15_000);
     if (!location || /^[-:]+$/.test(location)) {
       return {
         ok: false,

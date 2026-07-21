@@ -150,7 +150,13 @@ export class AttendanceService {
           failureCategory: result.failureCategory,
           sanitizedMessage: result.message,
         });
-        await captureFailure(page, { runId, action, failureCategory: result.failureCategory });
+        await captureFailure(page, {
+          runId,
+          action,
+          failureCategory: result.failureCategory,
+          message: result.message,
+          browserDiagnostics: portal.getDiagnostics(),
+        });
         process.exitCode = 1;
         return;
       }
