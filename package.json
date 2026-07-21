@@ -22,6 +22,8 @@
     "lint": "eslint .",
     "job": "node dist/src/jobs/automation.js",
     "job:dev": "tsx src/jobs/automation.ts",
+    "rotation": "node dist/src/jobs/passwordRotation.js",
+    "rotation:dev": "tsx src/jobs/passwordRotation.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc -p tsconfig.json --noEmit",

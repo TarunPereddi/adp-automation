@@ -14,10 +14,14 @@ export interface RotationRun {
 export class RotationRepository {
   constructor(private readonly collection: Collection<RotationRun>) {}
 
-  async create(accountId: string, dateKey: string): Promise<RotationRun | null> {
+  async create(
+    accountId: string,
+    dateKey: string,
+    runKey = 'scheduled',
+  ): Promise<RotationRun | null> {
     const now = new Date();
     const record: RotationRun = {
-      idempotencyKey: `${accountId}:${dateKey}:PASSWORD_ROTATION`,
+      idempotencyKey: `${accountId}:${dateKey}:PASSWORD_ROTATION:${runKey}`,
       accountId,
       dateKey,
       state: 'PLANNED',

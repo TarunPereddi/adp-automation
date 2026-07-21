@@ -17,6 +17,26 @@ export const selectors = {
     verified: true,
     evidence: 'Live shadow input verified 2026-07-21 at /ng/login',
   },
+  currentPassword: {
+    selector: 'input[placeholder="Enter current password"]',
+    verified: true,
+    evidence: 'Live forced-change form verified 2026-07-22 at /ng/changepassword',
+  },
+  newPassword: {
+    selector: 'input[placeholder="Enter new password"]',
+    verified: true,
+    evidence: 'Live forced-change form verified 2026-07-22 at /ng/changepassword',
+  },
+  confirmPassword: {
+    selector: 'input[placeholder="Re-enter password to confirm"]',
+    verified: true,
+    evidence: 'Live forced-change form verified 2026-07-22 at /ng/changepassword',
+  },
+  updatePasswordButton: {
+    selector: 'sdf-button[aria-label="Update"]',
+    verified: true,
+    evidence: 'Live forced-change Update control verified 2026-07-22',
+  },
   loginButton: {
     selector: '.login-page__primary-button',
     verified: true,

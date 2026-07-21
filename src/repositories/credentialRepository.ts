@@ -12,11 +12,17 @@ export class CredentialRepository {
     accountId: string,
   ): Promise<Omit<
     CredentialRecord,
-    'currentPasswordEncrypted' | 'previousPasswordEncrypted'
+    'currentPasswordEncrypted' | 'previousPasswordEncrypted' | 'pendingPasswordEncrypted'
   > | null> {
     const record = await this.collection.findOne(
       { accountId },
-      { projection: { currentPasswordEncrypted: 0, previousPasswordEncrypted: 0 } },
+      {
+        projection: {
+          currentPasswordEncrypted: 0,
+          previousPasswordEncrypted: 0,
+          pendingPasswordEncrypted: 0,
+        },
+      },
     );
     return record;
   }
@@ -26,7 +32,9 @@ export class CredentialRepository {
     return record ? decrypt(record.currentPasswordEncrypted, this.encodedKey) : null;
   }
 
-  async getCandidates(accountId: string): Promise<{ current: string; previous?: string } | null> {
+  async getCandidates(
+    accountId: string,
+  ): Promise<{ current: string; previous?: string; pending?: string } | null> {
     const record = await this.collection.findOne({ accountId });
     if (!record) return null;
     return {
@@ -34,7 +42,30 @@ export class CredentialRepository {
       previous: record.previousPasswordEncrypted
         ? decrypt(record.previousPasswordEncrypted, this.encodedKey)
         : undefined,
+      pending: record.pendingPasswordEncrypted
+        ? decrypt(record.pendingPasswordEncrypted, this.encodedKey)
+        : undefined,
     };
+  }
+
+  async stageRotation(options: {
+    accountId: string;
+    expectedVersion: number;
+    newPassword: string;
+  }): Promise<void> {
+    const result = await this.collection.updateOne(
+      { accountId: options.accountId, credentialVersion: options.expectedVersion },
+      {
+        $set: {
+          pendingPasswordEncrypted: encrypt(options.newPassword, this.encodedKey),
+          rotationStatus: 'PASSWORD_CHANGE_STARTED',
+          updatedAt: new Date(),
+        },
+      },
+    );
+    if (result.modifiedCount !== 1) {
+      throw new Error('Credential version conflict; pending rotation was not staged');
+    }
   }
 
   async seed(accountId: string, password: string): Promise<void> {
@@ -71,6 +102,7 @@ export class CredentialRepository {
           rotatedAt: now,
           updatedAt: now,
         },
+        $unset: { pendingPasswordEncrypted: '' },
       },
     );
     if (result.modifiedCount !== 1) {
@@ -97,6 +129,7 @@ export class CredentialRepository {
           rotatedAt: now,
           updatedAt: now,
         },
+        $unset: { pendingPasswordEncrypted: '' },
       },
     );
     if (result.modifiedCount !== 1) {

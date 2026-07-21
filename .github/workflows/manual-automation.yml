@@ -58,6 +58,7 @@ jobs:
       MONGODB_DATABASE: ${{ secrets.MONGODB_DATABASE }}
       ADP_SECURITY_ANSWERS_JSON: ${{ secrets.ADP_SECURITY_ANSWERS_JSON }}
       ADP_PASSWORD: ${{ secrets.ADP_PASSWORD }}
+      ADP_TEMP_PASSWORD: ${{ secrets.ADP_TEMP_PASSWORD }}
       ATTENDANCE_LATITUDE: ${{ secrets.ATTENDANCE_LATITUDE }}
       ATTENDANCE_LONGITUDE: ${{ secrets.ATTENDANCE_LONGITUDE }}
       ATTENDANCE_LOCATION_ACCURACY_METERS: ${{ secrets.ATTENDANCE_LOCATION_ACCURACY_METERS }}
@@ -83,19 +84,23 @@ jobs:
         run: |
           case "$MANUAL_ACTION" in
             PUNCH_IN)
+              npm run rotation
               PUNCH_IN_TIME="$(TZ=Asia/Kolkata date +%H:%M)" AUTOMATION_ACTION=PUNCH_IN npm run job
               ;;
             PUNCH_OUT)
+              npm run rotation
               PUNCH_OUT_TIME="$(TZ=Asia/Kolkata date +%H:%M)" AUTOMATION_ACTION=PUNCH_OUT npm run job
               ;;
             DRY_RUN|CHECK_LOGIN|CHECK_CALENDAR|CHECK_ATTENDANCE)
               AUTOMATION_ACTION=PUNCH_IN npm run job ;;
             SYNC_CREDENTIAL)
-              CREDENTIAL_REPLACEMENT_CONFIRM=I_UNDERSTAND npm run credential:replace ;;
-            ROTATE_PASSWORD|VERIFY_SESSION)
-              echo "This action remains fail-closed until the corresponding live portal flow is verified."
-              exit 2
+              test -n "$ADP_TEMP_PASSWORD" || { echo "ADP_TEMP_PASSWORD is not configured"; exit 1; }
+              ADP_PASSWORD="$ADP_TEMP_PASSWORD" CREDENTIAL_REPLACEMENT_CONFIRM=I_UNDERSTAND npm run credential:replace
               ;;
+            ROTATE_PASSWORD)
+              npm run rotation ;;
+            VERIFY_SESSION)
+              AUTOMATION_ACTION=PUNCH_IN npm run job ;;
           esac
       - name: Upload sanitized failure artifacts
         if: failure()

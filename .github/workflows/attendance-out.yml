@@ -33,6 +33,7 @@ jobs:
       MANUAL_HOLIDAYS: ${{ vars.MANUAL_HOLIDAYS }}
       MANUAL_LEAVE_DATES: ${{ vars.MANUAL_LEAVE_DATES }}
       GITHUB_REPOSITORY: ${{ github.repository }}
+      GITHUB_RUN_ID: ${{ github.run_id }}
       AUTOMATION_ACTION: PUNCH_OUT
 
     steps:
@@ -43,6 +44,12 @@ jobs:
           cache: npm
       - run: npm ci --include=dev
       - run: npm run build
+      - name: Rotate password only when ADP requires it
+        shell: bash
+        run: |
+          if [[ "$AUTOMATION_ENABLED" == "true" && "$DRY_RUN" == "false" ]]; then
+            npm run rotation
+          fi
       - run: npm run job
       - name: Upload sanitized failure artifacts
         if: failure()

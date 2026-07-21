@@ -2,19 +2,20 @@ import { randomUUID } from 'node:crypto';
 import type { CredentialRepository } from '../../repositories/credentialRepository.js';
 import type { LockRepository } from '../../repositories/lockRepository.js';
 import type { RotationRepository } from '../../repositories/rotationRepository.js';
-import { isRotationDay, istParts } from '../../shared/time.js';
+import { istParts } from '../../shared/time.js';
 import type { PasswordPolicy } from './passwordPolicy.js';
 import { generatePassword } from './passwordPolicy.js';
 
 export interface PasswordPortal {
   verifyPassword(password: string): Promise<boolean>;
+  rotationRequired(): boolean;
   discoverPasswordPolicy(): Promise<PasswordPolicy | null>;
   changePassword(oldPassword: string, newPassword: string): Promise<boolean>;
 }
 
 interface RotationDependencies {
   accountId: string;
-  rotationDays: number[];
+  runKey: string;
   credentials: CredentialRepository;
   locks: LockRepository;
   rotations: RotationRepository;
@@ -25,9 +26,12 @@ export class PasswordRotationService {
   constructor(private readonly dependencies: RotationDependencies) {}
 
   async run(now = new Date()): Promise<'COMPLETED' | 'SKIPPED' | 'MANUAL_INTERVENTION_REQUIRED'> {
-    if (!isRotationDay(now, this.dependencies.rotationDays)) return 'SKIPPED';
     const dateKey = istParts(now).dateKey;
-    const run = await this.dependencies.rotations.create(this.dependencies.accountId, dateKey);
+    const run = await this.dependencies.rotations.create(
+      this.dependencies.accountId,
+      dateKey,
+      this.dependencies.runKey,
+    );
     if (!run) return 'SKIPPED';
     const lockKey = `password-rotation:${this.dependencies.accountId}:${dateKey}`;
     const owner = randomUUID();
@@ -54,12 +58,21 @@ export class PasswordRotationService {
         return 'MANUAL_INTERVENTION_REQUIRED';
       }
       await transition('CURRENT_PASSWORD_VERIFIED');
+      if (!this.dependencies.portal.rotationRequired()) {
+        await transition('COMPLETED', 'Portal did not request a password change');
+        return 'SKIPPED';
+      }
       const policy = await this.dependencies.portal.discoverPasswordPolicy();
       if (!policy) {
         await transition('MANUAL_INTERVENTION_REQUIRED', 'Portal password policy is not verified');
         return 'MANUAL_INTERVENTION_REQUIRED';
       }
       const next = generatePassword(policy);
+      await this.dependencies.credentials.stageRotation({
+        accountId: this.dependencies.accountId,
+        expectedVersion: metadata.credentialVersion,
+        newPassword: next,
+      });
       await transition('PASSWORD_CHANGE_STARTED');
       if (!(await this.dependencies.portal.changePassword(candidates.current, next))) {
         await transition('FAILED', 'Portal did not confirm the password change');

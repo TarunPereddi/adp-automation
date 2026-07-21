@@ -75,6 +75,7 @@ export interface CredentialRecord {
   accountId: string;
   currentPasswordEncrypted: EncryptedValue;
   previousPasswordEncrypted?: EncryptedValue;
+  pendingPasswordEncrypted?: EncryptedValue;
   credentialVersion: number;
   rotationStatus?: RotationState;
   rotatedAt?: Date;
