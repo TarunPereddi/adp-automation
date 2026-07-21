@@ -37,10 +37,15 @@ export const selectors = {
     verified: true,
     evidence: 'Live dashboard Punch control verified 2026-07-22',
   },
-  confirmPunchButton: {
+  confirmPunchInButton: {
     selector: 'sdf-button[aria-label="Confirm punch"]',
     verified: true,
-    evidence: 'Live Punch dialog confirmation control verified 2026-07-22',
+    evidence: 'Live Punch In dialog confirmation control verified 2026-07-22',
+  },
+  confirmPunchOutButton: {
+    selector: 'sdf-button[aria-label="Confirm punch out"]',
+    verified: true,
+    evidence: 'Live Punch Out dialog confirmation control verified 2026-07-22',
   },
   punchInTime: {
     selector: 'sdf-quick-stat[label="Punch In Time"]',

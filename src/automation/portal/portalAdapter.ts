@@ -202,7 +202,11 @@ export class PortalAdapter {
         message: 'Punch button not found',
       };
     await button.click();
-    const confirm = await waitForDeep(this.page, selectors.confirmPunchButton.selector, 10_000);
+    const confirmSelector =
+      action === 'PUNCH_IN'
+        ? selectors.confirmPunchInButton.selector
+        : selectors.confirmPunchOutButton.selector;
+    const confirm = await waitForDeep(this.page, confirmSelector, 10_000);
     const location = await this.waitForMeaningfulStat(selectors.punchLocation.selector, 15_000);
     if (!location || /^[-:]+$/.test(location)) {
       return {
@@ -224,7 +228,7 @@ export class PortalAdapter {
           return !visit(document);
         },
         { timeout: 5_000 },
-        selectors.confirmPunchButton.selector,
+        confirmSelector,
       )
       .catch(() => undefined);
     const after = await this.waitForAttendanceState(action, beforePunchAction, 20_000);
