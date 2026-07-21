@@ -2,7 +2,7 @@ import type { Page } from 'puppeteer';
 import type { AppConfig } from '../../config/config.js';
 import type { AttendanceAction, AttendanceState, PortalResult } from '../../types/domain.js';
 import { classifyChallenge } from './challenges.js';
-import { deepQuery, deepValue, typeDeep, waitForDeep } from './shadowDom.js';
+import { deepQuery, deepQueryVisible, deepValue, typeDeep, waitForDeep } from './shadowDom.js';
 import { selectors } from './selectors.js';
 
 export class PortalAdapter {
@@ -127,7 +127,7 @@ export class PortalAdapter {
 
   async readAttendanceState(): Promise<AttendanceState> {
     const authenticated = Boolean(
-      await deepQuery(this.page, selectors.authenticatedMarker.selector),
+      await deepQueryVisible(this.page, selectors.authenticatedMarker.selector),
     );
     let [punchInText, punchOutText] = await Promise.all([
       this.readStat(selectors.punchInTime.selector),
@@ -156,8 +156,10 @@ export class PortalAdapter {
     }
     const punchInTime = normalizedPunchTime(punchInText);
     const punchOutTime = normalizedPunchTime(punchOutText);
-    const punchActionText = await this.readStat(selectors.punchButton.selector);
-    const hasPunchAction = Boolean(await deepQuery(this.page, selectors.punchButton.selector));
+    const punchActionText = await this.readVisibleStat(selectors.punchButton.selector);
+    const hasPunchAction = Boolean(
+      await deepQueryVisible(this.page, selectors.punchButton.selector),
+    );
     const evidence: string[] = [];
     if (punchInText) evidence.push(`punch-in:${punchInText.slice(0, 40)}`);
     if (punchOutText) evidence.push(`punch-out:${punchOutText.slice(0, 40)}`);
@@ -182,10 +184,10 @@ export class PortalAdapter {
       };
     }
     const before = await this.readAttendanceState();
-    const beforePunchAction = await this.readStat(selectors.punchButton.selector);
+    const beforePunchAction = await this.readVisibleStat(selectors.punchButton.selector);
     const alreadyDone = action === 'PUNCH_IN' ? before.punchedIn : before.punchedOut;
     if (alreadyDone) return { ok: true, value: before };
-    const button = await deepQuery(this.page, selectors.punchButton.selector);
+    const button = await deepQueryVisible(this.page, selectors.punchButton.selector);
     if (!button)
       return {
         ok: false,
@@ -236,6 +238,13 @@ export class PortalAdapter {
       : '';
   }
 
+  private async readVisibleStat(selector: string): Promise<string> {
+    const element = await deepQueryVisible(this.page, selector);
+    return element
+      ? element.evaluate((target) => target.textContent?.trim().replace(/\s+/g, ' ') ?? '')
+      : '';
+  }
+
   private async waitForAttendanceState(
     action: AttendanceAction,
     beforePunchAction: string,
@@ -247,7 +256,7 @@ export class PortalAdapter {
       const verified = action === 'PUNCH_IN' ? state.punchedIn : state.punchedOut;
       if (verified) return state;
       if (action === 'PUNCH_OUT' && /^punch out$/i.test(beforePunchAction)) {
-        const currentPunchAction = await this.readStat(selectors.punchButton.selector);
+        const currentPunchAction = await this.readVisibleStat(selectors.punchButton.selector);
         if (currentPunchAction && !/^punch out$/i.test(currentPunchAction)) {
           return {
             ...state,

@@ -3,12 +3,15 @@ const sensitiveKey =
 const uri = /mongodb(?:\+srv)?:\/\/[^\s"']+/gi;
 const bearer = /bearer\s+[a-z0-9._~+/=-]+/gi;
 const email = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi;
+const accountId =
+  /((?:accountNo=|\/(?:getPunchesForStartAndEndDate|getEmployeeCalenderData|currentWeekHours)\/))\d+/gi;
 
 export function sanitizeText(text: string): string {
   return text
     .replace(uri, '[REDACTED_MONGODB_URI]')
     .replace(bearer, 'Bearer [REDACTED]')
-    .replace(email, '[REDACTED_EMAIL]');
+    .replace(email, '[REDACTED_EMAIL]')
+    .replace(accountId, '$1[REDACTED_ACCOUNT_ID]');
 }
 
 export function sanitize(value: unknown, seen = new WeakSet<object>()): unknown {

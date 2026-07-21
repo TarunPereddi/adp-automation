@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises';
 import puppeteer from 'puppeteer';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { classifyChallenge } from '../src/automation/portal/challenges.js';
-import { deepQuery, typeDeep } from '../src/automation/portal/shadowDom.js';
+import { deepQuery, deepQueryVisible, typeDeep } from '../src/automation/portal/shadowDom.js';
 
 describe('browser fixtures', () => {
   let browser: Awaited<ReturnType<typeof puppeteer.launch>>;
@@ -30,6 +30,17 @@ describe('browser fixtures', () => {
     const page = await browser.newPage();
     await page.setContent(await readFile('fixtures/challenges.html', 'utf8'));
     expect(await classifyChallenge(page)).toBe('CAPTCHA_REQUIRED');
+    await page.close();
+  });
+
+  it('selects the visible portal action when a hidden stale control also exists', async () => {
+    const page = await browser.newPage();
+    await page.setContent(`
+      <sdf-button aria-label="Punch" style="display:none">Punch</sdf-button>
+      <sdf-button aria-label="Punch">Punch Out</sdf-button>
+    `);
+    const button = await deepQueryVisible(page, 'sdf-button[aria-label="Punch"]');
+    expect(await button?.evaluate((element) => element.textContent?.trim())).toBe('Punch Out');
     await page.close();
   });
 });

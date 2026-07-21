@@ -21,6 +21,39 @@ export async function deepQuery(
   return handle.asElement() as ElementHandle<Element> | null;
 }
 
+export async function deepQueryVisible(
+  page: Page,
+  selector: string,
+): Promise<ElementHandle<Element> | null> {
+  const handle = await page.evaluateHandle((target) => {
+    const visible = (element: Element): boolean => {
+      const rect = element.getBoundingClientRect();
+      const style = window.getComputedStyle(element);
+      return (
+        rect.width > 0 &&
+        rect.height > 0 &&
+        style.display !== 'none' &&
+        style.visibility !== 'hidden' &&
+        style.opacity !== '0'
+      );
+    };
+    const visit = (root: Document | ShadowRoot): Element | null => {
+      for (const element of root.querySelectorAll(target)) {
+        if (visible(element)) return element;
+      }
+      for (const element of root.querySelectorAll('*')) {
+        if (element.shadowRoot) {
+          const nested = visit(element.shadowRoot);
+          if (nested) return nested;
+        }
+      }
+      return null;
+    };
+    return visit(document);
+  }, selector);
+  return handle.asElement() as ElementHandle<Element> | null;
+}
+
 export async function waitForDeep(
   page: Page,
   selector: string,

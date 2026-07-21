@@ -17,4 +17,14 @@ describe('sanitization', () => {
     expect(value).not.toContain('abc.def');
     expect(value).not.toContain('test@example.com');
   });
+
+  it('redacts ADP account identifiers embedded in diagnostic URLs', () => {
+    expect(
+      sanitizeText(
+        'https://example.test/api/regularization/getPunchesForStartAndEndDate/123456789?accountNo=123456789',
+      ),
+    ).toBe(
+      'https://example.test/api/regularization/getPunchesForStartAndEndDate/[REDACTED_ACCOUNT_ID]?accountNo=[REDACTED_ACCOUNT_ID]',
+    );
+  });
 });
