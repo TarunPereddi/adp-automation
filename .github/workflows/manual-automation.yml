@@ -65,6 +65,7 @@ jobs:
       MANUAL_HOLIDAYS: ${{ vars.MANUAL_HOLIDAYS }}
       MANUAL_LEAVE_DATES: ${{ vars.MANUAL_LEAVE_DATES }}
       GITHUB_REPOSITORY: ${{ github.repository }}
+      GITHUB_RUN_ID: ${{ github.run_id }}
       MANUAL_ACTION: ${{ inputs.action }}
       AUTOMATION_ENABLED: ${{ (inputs.action == 'PUNCH_IN' || inputs.action == 'PUNCH_OUT') && 'true' || 'false' }}
       DRY_RUN: ${{ (inputs.action == 'PUNCH_IN' || inputs.action == 'PUNCH_OUT') && 'false' || 'true' }}

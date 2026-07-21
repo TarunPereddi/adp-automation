@@ -37,8 +37,13 @@ export class AttendanceService {
     const { dateKey } = istParts(now);
     const runId = randomUUID();
     const baseKey = `${config.portal.accountId}:${dateKey}:${action}`;
+    const explicitManualRun = process.env.MANUAL_ACTION === action && config.github.runId;
     const idempotencyKey =
-      config.dryRun || !config.automationEnabled ? `${baseKey}:DRY_RUN:${runId}` : baseKey;
+      config.dryRun || !config.automationEnabled
+        ? `${baseKey}:DRY_RUN:${runId}`
+        : explicitManualRun
+          ? `${baseKey}:MANUAL:${config.github.runId}`
+          : baseKey;
     const lockKey = `attendance:${config.portal.accountId}:${dateKey}:${action}`;
     const owner = `${process.env.GITHUB_RUN_ID ?? 'local'}:${runId}`;
     const run: AutomationRun = {

@@ -48,8 +48,9 @@ export const selectors = {
     evidence: 'Live Punch Information stat verified 2026-07-22',
   },
   punchLocation: {
-    selector: 'sdf-quick-stat[label="Location"]',
+    selector:
+      'sdf-flag-layout:has(sdf-icon[icon="location"]) .punch-dialog-row-value[slot="supporting-content"]',
     verified: true,
-    evidence: 'Live Punch dialog location stat verified 2026-07-22',
+    evidence: 'Live Punch dialog Location row verified 2026-07-22',
   },
 } satisfies Record<string, SelectorDefinition>;
