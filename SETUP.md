@@ -2,7 +2,7 @@
 
 ## 1. Local prerequisites
 
-- Node.js 20.19 or newer
+- Node.js 22.12 or newer (GitHub Actions uses Node.js 24)
 - Git
 - A MongoDB Atlas account with MFA enabled
 - Access to repository settings and Actions secrets
