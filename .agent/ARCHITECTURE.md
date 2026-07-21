@@ -75,3 +75,5 @@ Never simplify this to a portal-first/database-second write without encrypted st
 - `tests/time.test.ts`: IST conversion and grace windows.
 
 Run `npm.cmd run validate`; do not claim validation from partial checks.
+
+`@emnapi/core` and `@emnapi/runtime` are intentionally pinned dev dependencies. They satisfy optional WASM peer entries that Windows npm otherwise omits from the lockfile, causing Linux GitHub Actions `npm ci` to fail. Do not remove them without proving a clean Linux install.
