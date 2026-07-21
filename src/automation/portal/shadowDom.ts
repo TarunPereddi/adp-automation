@@ -77,6 +77,40 @@ export async function waitForDeep(
   return element;
 }
 
+export async function waitForDeepVisible(
+  page: Page,
+  selector: string,
+  timeoutMs = 30_000,
+): Promise<ElementHandle<Element>> {
+  await page.waitForFunction(
+    (target) => {
+      const visible = (element: Element): boolean => {
+        const rect = element.getBoundingClientRect();
+        const style = window.getComputedStyle(element);
+        return (
+          rect.width > 0 &&
+          rect.height > 0 &&
+          style.display !== 'none' &&
+          style.visibility !== 'hidden' &&
+          style.opacity !== '0'
+        );
+      };
+      const visit = (root: Document | ShadowRoot): boolean => {
+        if ([...root.querySelectorAll(target)].some(visible)) return true;
+        return [...root.querySelectorAll('*')].some(
+          (element) => element.shadowRoot && visit(element.shadowRoot),
+        );
+      };
+      return visit(document);
+    },
+    { timeout: timeoutMs },
+    selector,
+  );
+  const element = await deepQueryVisible(page, selector);
+  if (!element) throw new Error(`Visible selector disappeared after wait: ${selector}`);
+  return element;
+}
+
 export async function typeDeep(page: Page, selector: string, value: string): Promise<void> {
   const element = await waitForDeep(page, selector);
   await element.click({ count: 3 });

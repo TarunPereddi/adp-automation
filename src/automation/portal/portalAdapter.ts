@@ -2,7 +2,14 @@ import type { Page } from 'puppeteer';
 import type { AppConfig } from '../../config/config.js';
 import type { AttendanceAction, AttendanceState, PortalResult } from '../../types/domain.js';
 import { classifyChallenge } from './challenges.js';
-import { deepQuery, deepQueryVisible, deepValue, typeDeep, waitForDeep } from './shadowDom.js';
+import {
+  deepQuery,
+  deepQueryVisible,
+  deepValue,
+  typeDeep,
+  waitForDeep,
+  waitForDeepVisible,
+} from './shadowDom.js';
 import { selectors } from './selectors.js';
 
 export class PortalAdapter {
@@ -111,7 +118,7 @@ export class PortalAdapter {
     if (challenge !== 'NONE') {
       return { ok: false, challenge, failureCategory: challengeCategory(challenge) };
     }
-    await waitForDeep(this.page, selectors.authenticatedMarker.selector, 30_000).catch(
+    await waitForDeepVisible(this.page, selectors.authenticatedMarker.selector, 30_000).catch(
       () => undefined,
     );
     const state = await this.readAttendanceState();
