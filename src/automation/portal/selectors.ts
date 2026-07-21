@@ -8,14 +8,14 @@ export interface SelectorDefinition {
 // Fixture selectors are stable and intentionally separate from live evidence.
 export const selectors = {
   username: {
-    selector: 'sdf-input[formcontrolname="userName"]',
+    selector: 'input[placeholder="Enter your email or username"]',
     verified: true,
-    evidence: 'Live login host verified 2026-07-21 at /ng/login',
+    evidence: 'Live shadow input verified 2026-07-21 at /ng/login',
   },
   password: {
-    selector: 'sdf-input[formcontrolname="password"]',
+    selector: 'input[placeholder="Password"]',
     verified: true,
-    evidence: 'Live login host verified 2026-07-21 at /ng/login',
+    evidence: 'Live shadow input verified 2026-07-21 at /ng/login',
   },
   loginButton: {
     selector: '.login-page__primary-button',

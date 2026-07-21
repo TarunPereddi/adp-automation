@@ -71,7 +71,16 @@ export class PortalAdapter {
       await typeDeep(this.page, selectors.password.selector, password);
       const button = await waitForDeep(this.page, selectors.loginButton.selector);
       await button.click();
-      await new Promise((resolve) => setTimeout(resolve, 2_000));
+      await this.page
+        .waitForFunction(
+          () =>
+            window.location.pathname !== '/ng/login' ||
+            /captcha|security question|verification code|one[- ]time password|\botp\b|multi[- ]factor|authenticator app|\bmfa\b/i.test(
+              document.body?.innerText ?? '',
+            ),
+          { timeout: 30_000 },
+        )
+        .catch(() => undefined);
     } catch (error) {
       return {
         ok: false,

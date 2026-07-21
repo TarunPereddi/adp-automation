@@ -46,9 +46,6 @@ export async function waitForDeep(
 
 export async function typeDeep(page: Page, selector: string, value: string): Promise<void> {
   const element = await waitForDeep(page, selector);
-  await element.focus();
-  await page.keyboard.down('Control');
-  await page.keyboard.press('A');
-  await page.keyboard.up('Control');
-  await page.keyboard.type(value, { delay: 25 });
+  await element.click({ count: 3 });
+  await element.type(value, { delay: 25 });
 }
