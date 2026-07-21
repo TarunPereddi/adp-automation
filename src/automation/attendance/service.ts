@@ -101,9 +101,18 @@ export class AttendanceService {
         return;
       }
 
+      let portalState = login.value;
+      if (action === 'PUNCH_OUT' && !portalState.punchedIn) {
+        const deadline = Date.now() + 20_000;
+        while (Date.now() < deadline && !portalState.punchedIn) {
+          await new Promise((resolve) => setTimeout(resolve, 1_000));
+          portalState = await portal.readAttendanceState();
+        }
+      }
+
       const holiday = await this.dependencies.holidays.getHolidayStatus(dateKey);
       const leave = await this.dependencies.leaves.getLeaveStatus(dateKey);
-      const portalWorkdayConfirmed = login.value.evidence.some((item) =>
+      const portalWorkdayConfirmed = portalState.evidence.some((item) =>
         item.endsWith('action-available'),
       );
       const calendar = combineCalendar(holiday, leave, portalWorkdayConfirmed);
@@ -112,7 +121,7 @@ export class AttendanceService {
         now,
         schedule: config.schedule,
         calendar,
-        portalState: login.value,
+        portalState,
         challenge: login.challenge ?? 'NONE',
         credentialConsistent,
         selectorsVerified: config.portal.selectorsVerified,
