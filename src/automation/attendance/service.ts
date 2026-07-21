@@ -150,6 +150,28 @@ export class AttendanceService {
         source: leave.source,
         reason: leave.reason,
       });
+      if (leave.status === 'WORKDAY' && leave.verified) {
+        const restored = await portal.restoreDashboard(credential.current);
+        if (!restored.ok || !restored.value) {
+          await runs.complete(runId, {
+            status: 'FAILED',
+            failureCategory: restored.failureCategory,
+            sanitizedMessage: restored.message ?? restored.challenge,
+          });
+          await captureFailure(page, {
+            runId,
+            action,
+            failureCategory: restored.failureCategory,
+            challenge: restored.challenge,
+            message: restored.message,
+            portalUrl: page.url(),
+            browserDiagnostics: portal.getDiagnostics(),
+          });
+          process.exitCode = 1;
+          return;
+        }
+        portalState = restored.value;
+      }
       const portalWorkdayConfirmed =
         portalState.evidence.some((item) => item.endsWith('action-available')) && leave.verified;
       const calendar = combineCalendar(holiday, leave, portalWorkdayConfirmed);

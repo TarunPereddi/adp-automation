@@ -251,7 +251,6 @@ export class PortalAdapter {
   async getLeaveStatus(dateKey: string): Promise<CalendarResult> {
     const checkedAt = new Date();
     const expiresAt = new Date(checkedAt.getTime() + 6 * 60 * 60 * 1000);
-    let result: CalendarResult;
     try {
       await this.page.goto(`${this.config.portal.origin}/ng/leaves/view`, {
         waitUntil: 'domcontentloaded',
@@ -286,7 +285,7 @@ export class PortalAdapter {
         .catch(() => undefined);
       const records = await this.readLeaveRecords();
       const blocking = findBlockingLeave(records, dateKey);
-      result = blocking
+      return blocking
         ? {
             status: 'LEAVE',
             verified: true,
@@ -306,7 +305,7 @@ export class PortalAdapter {
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown leave lookup failure';
       this.recordDiagnostic(`leave-lookup:${message}`);
-      result = {
+      return {
         status: 'UNKNOWN',
         verified: false,
         source: 'portal-leave-requests',
@@ -315,29 +314,24 @@ export class PortalAdapter {
         reason: 'Live leave lookup failed',
       };
     }
+  }
 
+  async restoreDashboard(password: string): Promise<PortalResult<AttendanceState>> {
     try {
-      // A fresh navigation to /ng/dashboard can make SecurTime discard the
-      // authenticated SPA session. Returning through browser history preserves it.
-      await this.page.goBack({
-        waitUntil: 'domcontentloaded',
-        timeout: 30_000,
-      });
-      await waitForDeepVisible(this.page, selectors.authenticatedMarker.selector, 30_000);
+      await this.openLogin();
+      const state = await this.readAttendanceState();
+      if (state.authenticated) return { ok: true, value: state, challenge: 'NONE' };
+      return this.login(password);
     } catch (error) {
-      this.recordDiagnostic(
-        `dashboard-restore:${error instanceof Error ? error.message : String(error)}`,
-      );
       return {
-        status: 'UNKNOWN',
-        verified: false,
-        source: 'portal-leave-requests',
-        checkedAt,
-        expiresAt,
-        reason: 'Dashboard could not be restored after leave lookup',
+        ok: false,
+        failureCategory: 'AUTHENTICATION_FAILED',
+        message:
+          error instanceof Error
+            ? error.message
+            : 'Dashboard restoration after leave lookup failed',
       };
     }
-    return result;
   }
 
   private async readStat(selector: string): Promise<string> {
