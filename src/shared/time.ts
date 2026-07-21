@@ -4,7 +4,6 @@ export interface IstParts {
   dateKey: string;
   weekday: number;
   minutes: number;
-  dayOfMonth: number;
 }
 
 export function istParts(date: Date): IstParts {
@@ -36,7 +35,6 @@ export function istParts(date: Date): IstParts {
     dateKey: `${year}-${month}-${day}`,
     weekday: weekdays[get('weekday')] ?? -1,
     minutes: Number(get('hour')) * 60 + Number(get('minute')),
-    dayOfMonth: Number(day),
   };
 }
 
@@ -70,8 +68,4 @@ export function actionWindow(
   return action === 'PUNCH_IN'
     ? { target: schedule.punchIn, before: schedule.punchInBefore, after: schedule.punchInAfter }
     : { target: schedule.punchOut, before: schedule.punchOutBefore, after: schedule.punchOutAfter };
-}
-
-export function isRotationDay(date: Date, days: number[]): boolean {
-  return days.includes(istParts(date).dayOfMonth);
 }

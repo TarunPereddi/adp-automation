@@ -20,7 +20,6 @@ const schema = z
       .url()
       .default('https://infoservices.securtime.adp.com/login?redirectUrl=%2Fwelcome'),
     ADP_ACCOUNT_ID: z.string().min(1).optional(),
-    ADP_SECURITY_ANSWERS_JSON: z.string().default('{}'),
     ATTENDANCE_LATITUDE: optionalLatitude,
     ATTENDANCE_LONGITUDE: optionalLongitude,
     ATTENDANCE_LOCATION_ACCURACY_METERS: z.coerce.number().positive().max(1000).default(50),
@@ -33,9 +32,6 @@ const schema = z
     PUNCH_IN_GRACE_AFTER_MINUTES: z.coerce.number().int().min(0).max(180).default(30),
     PUNCH_OUT_GRACE_BEFORE_MINUTES: z.coerce.number().int().min(0).max(180).default(15),
     PUNCH_OUT_GRACE_AFTER_MINUTES: z.coerce.number().int().min(0).max(180).default(30),
-    PASSWORD_ROTATION_DAYS: z.string().default('10,20,30'),
-    MAX_TRANSIENT_RETRIES: z.coerce.number().int().min(0).max(3).default(2),
-    MAX_AUTH_ATTEMPTS: z.coerce.number().int().min(1).max(2).default(2),
     AUTOMATION_ENABLED: booleanString,
     DRY_RUN: z
       .enum(['true', 'false'])
@@ -46,7 +42,6 @@ const schema = z
       .default('true')
       .transform((value) => value === 'true'),
     PORTAL_SELECTORS_VERIFIED: booleanString,
-    CALENDAR_SOURCE: z.enum(['manual', 'portal']).default('manual'),
     MANUAL_HOLIDAYS: z.string().default(''),
     MANUAL_LEAVE_DATES: z.string().default(''),
     DASHBOARD_HOST: z.literal('127.0.0.1').default('127.0.0.1'),
@@ -79,22 +74,6 @@ function commaList(value: string): string[] {
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
   const parsed = schema.parse(env);
-  let securityAnswers: Record<string, string>;
-  try {
-    const raw: unknown = JSON.parse(parsed.ADP_SECURITY_ANSWERS_JSON);
-    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('not an object');
-    securityAnswers = Object.fromEntries(
-      Object.entries(raw).map(([key, value]) => [key, String(value)]),
-    );
-  } catch {
-    throw new Error('ADP_SECURITY_ANSWERS_JSON must be a JSON object');
-  }
-
-  const rotationDays = commaList(parsed.PASSWORD_ROTATION_DAYS).map(Number);
-  if (rotationDays.some((day) => !Number.isInteger(day) || day < 1 || day > 31)) {
-    throw new Error('PASSWORD_ROTATION_DAYS must contain days from 1 to 31');
-  }
-
   return {
     environment: parsed.NODE_ENV,
     timezone: parsed.APP_TIMEZONE,
@@ -103,7 +82,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
       loginUrl: parsed.ADP_LOGIN_URL,
       origin: new URL(parsed.ADP_LOGIN_URL).origin,
       accountId: parsed.ADP_ACCOUNT_ID,
-      securityAnswers,
       selectorsVerified: parsed.PORTAL_SELECTORS_VERIFIED,
     },
     attendanceLocation:
@@ -126,14 +104,11 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
       punchInAfter: parsed.PUNCH_IN_GRACE_AFTER_MINUTES,
       punchOutBefore: parsed.PUNCH_OUT_GRACE_BEFORE_MINUTES,
       punchOutAfter: parsed.PUNCH_OUT_GRACE_AFTER_MINUTES,
-      rotationDays,
     },
-    retries: { transient: parsed.MAX_TRANSIENT_RETRIES, auth: parsed.MAX_AUTH_ATTEMPTS },
     automationEnabled: parsed.AUTOMATION_ENABLED,
     dryRun: parsed.DRY_RUN,
     headless: parsed.HEADLESS,
     calendar: {
-      source: parsed.CALENDAR_SOURCE,
       holidays: commaList(parsed.MANUAL_HOLIDAYS),
       leaveDates: commaList(parsed.MANUAL_LEAVE_DATES),
     },

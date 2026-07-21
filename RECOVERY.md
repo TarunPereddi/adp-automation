@@ -1,58 +1,80 @@
 # Recovery runbook
 
-## Stop automation
+## First response: stop automation
 
-Set repository variable `AUTOMATION_ENABLED=false` and `DRY_RUN=true`, then disable both scheduled attendance workflows. Confirm no job is still running.
+```powershell
+gh variable set AUTOMATION_ENABLED --body false
+gh variable set DRY_RUN --body true
+gh workflow disable attendance-in.yml
+gh workflow disable attendance-out.yml
+```
+
+Confirm that no attendance or rotation job is still running. The external inactivity watcher must never re-enable workflows in `disabled_manually` state.
 
 ## Authentication challenge or account lock
 
-1. Stop retries immediately.
-2. Use the portal manually through the supported flow.
-3. Do not bypass CAPTCHA, MFA, OTP, or unknown-device checks.
-4. Confirm the account is not locked and record only the sanitized challenge category.
-5. Re-run `CHECK_LOGIN` once after manual resolution.
+1. Stop automated retries.
+2. Resolve the challenge through the supported ADP flow.
+3. Do not bypass CAPTCHA, OTP, MFA, email verification, security questions, or device verification.
+4. Confirm the account is not locked.
+5. Run `VERIFY_SESSION` once.
+6. Restore production only after a successful login and calendar check.
 
-## Credential inconsistency
+## Password rotation interruption
 
-The rotation design retains only current and previous encrypted candidates and caps authentication attempts at two.
+Rotation stages the generated candidate encrypted in MongoDB before submitting it to ADP.
 
-1. Keep automation disabled.
-2. Inspect credential metadata with `npm run credential:status`; do not display a password.
-3. If rotation reached `PORTAL_PASSWORD_CHANGED`, test the confirmed new candidate once through recovery tooling when implemented.
-4. Test the previous candidate only if the first failed and the account is not near lockout.
-5. Reconcile MongoDB only after proving which credential works.
-6. Mark `MANUAL_INTERVENTION_REQUIRED` if neither state can be proven.
+1. Keep attendance disabled.
+2. Run `npm.cmd run credential:status` and inspect `rotationStatus` without displaying a password.
+3. If the first rotation ended ambiguously after submission, do **not** overwrite MongoDB with another password.
+4. Re-run the confirmed `ROTATE_PASSWORD` action once. It tests the current credential and then the staged candidate in fresh browser sessions; a valid staged candidate is promoted automatically.
+5. Run `VERIFY_SESSION` after `COMPLETED`.
+6. If the recovery retry returns `MANUAL_INTERVENTION_REQUIRED`, stop and inspect the sanitized rotation history before another login attempt.
 
-The current live rotation adapter is intentionally disabled because the portal policy and change form are unverified.
+## Forgot Password temporary credential
+
+Follow Section 10 of [SETUP.md](SETUP.md). `ADP_TEMP_PASSWORD` must exist only long enough to run `SYNC_CREDENTIAL`; delete it after the rotation attempt. Never leave a changing password in GitHub Secrets.
 
 ## MongoDB unavailable
 
-Do not punch without locks, idempotency, and credential state. Check Atlas status, cluster availability, IP access list, database-user permissions, and URI validity. Never fall back to a plaintext or local password in GitHub Actions.
+Do not punch without MongoDB locks, idempotency, and credential state. Check:
 
-## Selector change
+- Atlas service and cluster availability;
+- Atlas IP access list;
+- database-user `readWrite` permission for the configured database;
+- connection URI and TLS;
+- whether `ADP_STORE_KEY` matches the key used to encrypt the stored credential.
 
-Keep `PORTAL_SELECTORS_VERIFIED=false`. Capture a sanitized diagnostic, update the central registry, extend browser fixtures, run `npm run validate`, and validate the real portal without submitting attendance. Re-enable only with positive authentication and post-action evidence.
+Never fall back to a plaintext password in the workflow.
 
-## Missed run
+## Selector or portal-flow change
 
-Check the local dashboard, GitHub workflow status, current portal state, workday evidence, and allowed time window. Never backfill outside policy windows. A manual action requires `I_UNDERSTAND` and still passes all application safety gates.
+1. Set `PORTAL_SELECTORS_VERIFIED=false` and keep automation disabled.
+2. Capture sanitized page evidence through the normal account flow.
+3. Update the central selector registry and relevant fixtures/tests.
+4. Run `npm.cmd run validate`.
+5. Run `CHECK_ATTENDANCE` without a live punch.
+6. Re-enable only after positive authentication, leave, location, and portal-state evidence.
 
-## Scheduled workflow disabled
+## Missed attendance run
 
-Use the repository Actions UI or:
+Check GitHub workflow state, recent MongoDB run records, current ADP attendance state, calendar evidence, and the configured time window. Never backfill outside the allowed application window. A manual action still requires `I_UNDERSTAND` and passes all safety gates.
+
+## Workflow disabled for inactivity
+
+If state is `disabled_inactivity`, the external watcher or an operator may enable it. If state is `disabled_manually`, investigate why it was stopped before enabling it.
 
 ```powershell
+gh workflow list --all
 gh workflow enable attendance-in.yml
 gh workflow enable attendance-out.yml
 ```
 
-Do not create fake keepalive commits.
-
 ## Suspected secret exposure
 
-1. Disable workflows.
-2. Rotate the MongoDB database user password.
-3. Generate a new encryption key only after decrypting and re-encrypting the credential through a reviewed migration.
-4. Revoke exposed portal sessions.
-5. Review Atlas access history and GitHub audit/activity logs.
-6. Remove any sensitive artifact and rotate every value it may contain.
+1. Disable workflows and production variables.
+2. Rotate the Atlas database-user password.
+3. Revoke exposed portal sessions or trigger the supported password-reset flow.
+4. If `ADP_STORE_KEY` was exposed, decrypt and re-encrypt the credential through a reviewed migration before replacing the key.
+5. Review GitHub and Atlas audit history.
+6. Remove exposed artifacts and rotate every value they may contain.

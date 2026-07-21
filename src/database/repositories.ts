@@ -1,5 +1,4 @@
 import type { Db } from 'mongodb';
-import { CalendarRepository } from '../repositories/calendarRepository.js';
 import { CredentialRepository } from '../repositories/credentialRepository.js';
 import { LockRepository } from '../repositories/lockRepository.js';
 import { RotationRepository } from '../repositories/rotationRepository.js';
@@ -15,7 +14,6 @@ export function createRepositories(db: Db, config: AppConfig & { storeKey: strin
     ),
     locks: new LockRepository(db.collection('automation_locks')),
     runs: new RunRepository(db.collection<AutomationRun>('automation_runs')),
-    calendars: new CalendarRepository(db.collection('calendar_checks')),
     rotations: new RotationRepository(db.collection('rotation_runs')),
   };
 }

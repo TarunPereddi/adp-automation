@@ -1,120 +1,226 @@
 # Setup and production-readiness guide
 
-## 1. Local prerequisites
+This guide creates a new installation without placing the changing ADP password in GitHub Secrets or Git.
 
-- Node.js 22.12 or newer (GitHub Actions uses Node.js 24)
-- Git
-- A MongoDB Atlas account with MFA enabled
-- Access to repository settings and Actions secrets
-- Windows PowerShell for the local tooling
+## 1. Prerequisites
+
+- Node.js 22.12 or newer; GitHub Actions currently uses Node.js 24.
+- Git and GitHub CLI (`gh`).
+- A MongoDB Atlas project with MFA enabled.
+- Administrator access to the target GitHub repository.
+- Authorized ADP SecurTime credentials and an employer-approved attendance location.
+- Windows PowerShell for the local credential tools described here.
 
 ```powershell
+git clone <repository-url>
+Set-Location adp-automation
 Copy-Item .env.example .env
-npm ci
-npm run validate
+npm.cmd ci
+npm.cmd run validate
 ```
 
-Do not place a portal password in `.env`. `.env` is ignored, but the changing password belongs only in the encrypted MongoDB record.
+Never place the ADP password in `.env`, source files, workflow inputs, issues, or logs.
 
-## 2. MongoDB Atlas Free
+## 2. Create MongoDB Atlas state storage
 
-Create the Atlas account interactively with the authorized work email, enable MFA, and select only the no-cost Free cluster option. Do not enable paid backups, dedicated nodes, support, or billing.
+Create a free Atlas cluster, database `adp_automation`, and a database user restricted to `readWrite` on that database. Enable TLS and MFA.
 
-Create database `adp_automation` and a database user with `readWrite` access only to that database. The application creates these collections and indexes:
+GitHub-hosted runners use changing outbound IP addresses. If a narrow Atlas IP allowlist is not practical, a broad entry such as `0.0.0.0/0` exposes the database endpoint to connection attempts. Compensate with a long unique database password, least-privilege database user, application-layer credential encryption, and regular access review.
 
-| Collection         | Purpose                                    | Important index              |
-| ------------------ | ------------------------------------------ | ---------------------------- |
-| `credentials`      | Encrypted current and previous password    | unique `accountId`           |
-| `portal_sessions`  | Reserved encrypted supported-session state | unique account, TTL expiry   |
-| `automation_runs`  | Idempotency and run history                | unique `idempotencyKey`      |
-| `automation_locks` | Distributed leases                         | unique `lockKey`, TTL expiry |
-| `calendar_checks`  | Verified calendar cache                    | account/date, TTL expiry     |
-| `rotation_runs`    | Persistent rotation state history          | unique idempotency key       |
-| `system_events`    | Sanitized audit events                     | date and TTL indexes         |
+The application creates these collections and indexes:
 
-Atlas only accepts clients on its project IP access list. GitHub-hosted runners use changing addresses, so a static `/32` entry is not durable. The zero-cost practical option is often `0.0.0.0/0`, but that exposes the database endpoint to connection attempts. If used, compensate with a long random database password, least-privilege database user, TLS, application-layer encryption, Atlas MFA, and regular access review. MongoDB recommends the smallest possible network ranges; this is a documented tradeoff, not a preferred security posture. See [Atlas IP access lists](https://www.mongodb.com/docs/atlas/security/add-ip-address-to-list/) and [Atlas network-security guidance](https://www.mongodb.com/docs/atlas/architecture/current/network-security/).
+| Collection         | Purpose                                                          |
+| ------------------ | ---------------------------------------------------------------- |
+| `credentials`      | Encrypted current, previous, and in-progress password candidates |
+| `automation_runs`  | Attendance decisions and outcomes                                |
+| `automation_locks` | Expiring distributed locks                                       |
+| `rotation_runs`    | Password-rotation state history                                  |
+| `system_events`    | Audited credential access events with TTL cleanup                |
 
-Set local `MONGODB_URI`, `MONGODB_DATABASE`, and a new 32-byte `ADP_STORE_KEY`:
+## 3. Configure the local environment
+
+Generate a 32-byte encryption key:
 
 ```powershell
 node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
-npm run db:init
-npm run credential:seed
-npm run credential:verify
 ```
 
-Store the generated key securely. Losing it makes the encrypted credential unrecoverable.
+Fill these values in the ignored `.env` file:
 
-## 3. GitHub secrets and variables
+```text
+ADP_USERNAME=<authorized portal username>
+ADP_ACCOUNT_ID=<stable non-sensitive alias>
+ATTENDANCE_LATITUDE=<authorized latitude>
+ATTENDANCE_LONGITUDE=<authorized longitude>
+ATTENDANCE_LOCATION_ACCURACY_METERS=50
+MONGODB_URI=<Atlas connection string>
+MONGODB_DATABASE=adp_automation
+ADP_STORE_KEY=<generated base64 key>
+AUTOMATION_ENABLED=false
+DRY_RUN=true
+PORTAL_SELECTORS_VERIFIED=false
+```
 
-Create these static repository secrets:
+Protect and back up `ADP_STORE_KEY` separately. Losing it makes the encrypted password unrecoverable. On Windows, restrict `.env` to the current account:
+
+```powershell
+$account = "$env:USERDOMAIN\$env:USERNAME"
+icacls .env /inheritance:r /grant:r "${account}:(M)"
+```
+
+Initialize MongoDB and enter the initial portal password interactively:
+
+```powershell
+npm.cmd run db:init
+npm.cmd run credential:seed
+npm.cmd run credential:verify
+```
+
+## 4. Configure GitHub Secrets
+
+Create only these persistent repository secrets:
 
 - `ADP_USERNAME`
-- `ATTENDANCE_ACCOUNT_ID` (a non-sensitive stable alias, not an employee ID when avoidable)
+- `ATTENDANCE_ACCOUNT_ID`
 - `ADP_STORE_KEY`
 - `MONGODB_URI`
 - `MONGODB_DATABASE`
-- `ADP_SECURITY_ANSWERS_JSON` only if organizational policy permits automation of those supported questions
 - `ATTENDANCE_LATITUDE`
 - `ATTENDANCE_LONGITUDE`
 - `ATTENDANCE_LOCATION_ACCURACY_METERS`
 
-Do not retain `ADP_PASSWORD`, `GH_TOKEN`, or a changing-password secret. MongoDB is the encrypted source of truth. For a one-time credential sync, create `ADP_PASSWORD`, run the confirmed `SYNC_CREDENTIAL` workflow, and delete the secret immediately after the run succeeds.
+Use the same account alias, MongoDB database, and encryption key as the local `.env`. The changing ADP password remains encrypted in MongoDB and is not a persistent GitHub Secret.
 
-Create variables with safe defaults:
+Example secret entry:
 
-```text
-AUTOMATION_ENABLED=false
-DRY_RUN=true
-PORTAL_SELECTORS_VERIFIED=false
-MANUAL_HOLIDAYS=
-MANUAL_LEAVE_DATES=
+```powershell
+gh secret set ADP_USERNAME
+gh secret set ATTENDANCE_ACCOUNT_ID
+gh secret set ADP_STORE_KEY
+gh secret set MONGODB_URI
+gh secret set MONGODB_DATABASE
+gh secret set ATTENDANCE_LATITUDE
+gh secret set ATTENDANCE_LONGITUDE
+gh secret set ATTENDANCE_LOCATION_ACCURACY_METERS
 ```
 
-## 4. Portal validation
+## 5. Configure safe repository variables
 
-Validation must be performed through the normal supported account flow. Do not bypass CAPTCHA, OTP, MFA, or device verification.
+Start safe-disabled:
 
-For each selector in `src/automation/portal/selectors.ts`, capture sanitized evidence and verify:
+```powershell
+gh variable set AUTOMATION_ENABLED --body false
+gh variable set DRY_RUN --body true
+gh variable set PORTAL_SELECTORS_VERIFIED --body false
+gh variable set MANUAL_HOLIDAYS --body ""
+```
 
-1. Login URL and Shadow DOM host hierarchy.
-2. Username/password fields and disabled/enabled submit state.
-3. A positive authenticated marker that cannot appear on the login page.
-4. Security challenge classification.
-5. Attendance-state representation and existing timestamps.
-6. Punch In and Punch Out controls in every valid state.
-7. Positive post-action state evidence.
-8. Authoritative holiday and leave source.
-9. Password settings route, policy, submission, and fresh-login verification.
-10. Whether the portal officially permits remembered/trusted sessions.
+`MANUAL_HOLIDAYS` is a comma-separated list of mandatory dates in `YYYY-MM-DD` format. Do not add optional holidays. `MANUAL_LEAVE_DATES` is an optional emergency override; normal leave decisions come from ADP's live full leave table.
 
-Do not set `PORTAL_SELECTORS_VERIFIED=true` until all attendance and password-rotation selectors and positive-state checks are proven.
+## 6. Validate this ADP tenant
 
-## 5. Dry run and activation
+Tenant UI versions can differ. Before enabling production, verify every selector in `src/automation/portal/selectors.ts` through the normal supported portal flow:
 
-Run `CHECK_LOGIN` and `CHECK_ATTENDANCE` manually while safe-disabled. Review sanitized logs, MongoDB run records, and failure artifacts. Then test a real action only when the current portal state and policy window make it valid.
+1. Login inputs and Sign In control.
+2. Authenticated Punch marker and Punch Information state.
+3. Punch In, Punch Out, location, and confirmation controls.
+4. Dashboard `View leave details`, `View all`, full leave grid, page-size control, date columns, and status column.
+5. Forced password-change current/new/confirm fields and Update control.
+6. Fresh-session verification after a password change.
 
-Production activation requires all three values:
+Do not bypass CAPTCHA, OTP, MFA, email verification, security questions, or unknown-device checks. Any such state must remain fail-closed.
+
+## 7. Run safe diagnostics
+
+Set `PORTAL_SELECTORS_VERIFIED=true` only after the tenant validation above, while leaving automation disabled and dry-run enabled:
+
+```powershell
+gh variable set PORTAL_SELECTORS_VERIFIED --body true
+gh workflow run manual-automation.yml -f action=CHECK_ATTENDANCE
+gh run list --workflow manual-automation.yml --limit 3
+```
+
+The check may end with `OUTSIDE_TIME_WINDOW`; that is a safe success if login, leave, and calendar evidence were verified first.
+
+## 8. Test explicit live actions
+
+Perform each test during its valid time window and confirm the resulting portal state manually:
+
+```powershell
+gh workflow run manual-automation.yml -f action=PUNCH_IN -f confirmation=I_UNDERSTAND
+gh workflow run manual-automation.yml -f action=PUNCH_OUT -f confirmation=I_UNDERSTAND
+```
+
+The application still enforces calendar, location, current attendance state, time window, credential consistency, and idempotency.
+
+## 9. Enable production
+
+The workflows schedule Punch In at `03:30 UTC` / `09:00 IST` and Punch Out at `12:30 UTC` / `18:00 IST`, Monday through Friday.
+
+```powershell
+gh variable set AUTOMATION_ENABLED --body true
+gh variable set DRY_RUN --body false
+gh workflow enable attendance-in.yml
+gh workflow enable attendance-out.yml
+gh workflow list --all
+gh variable list
+```
+
+Production requires all of the following:
 
 ```text
+Attendance In=active
+Attendance Out=active
 PORTAL_SELECTORS_VERIFIED=true
 AUTOMATION_ENABLED=true
 DRY_RUN=false
 ```
 
-Enable them one at a time, re-run diagnostics, and inspect portal state after the first action. A manual live workflow additionally requires `confirmation=I_UNDERSTAND`.
+## 10. Password reset and forced rotation
 
-## 6. Scheduled-workflow maintenance
+Normal production runs check for the forced change-password screen and rotate only when ADP requires it. If Forgot Password was used and ADP issued a temporary credential:
 
-GitHub documents that scheduled workflows in **public repositories** can be disabled after 60 days without repository activity. This project does not create fake commits. Re-enable a disabled workflow from Actions or with `gh workflow enable <workflow-file>`. Keep manual dispatch available and use the dashboard’s missed-run indication. See [GitHub’s schedule event documentation](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows) and [workflow enable/disable guidance](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/disable-and-enable-workflows).
-
-## 7. Local dashboard
-
-Set the local environment values, then:
+1. Disable both attendance workflows.
+2. Set `AUTOMATION_ENABLED=false` and `DRY_RUN=true`.
+3. Create temporary secret `ADP_TEMP_PASSWORD`.
+4. Run `SYNC_CREDENTIAL` with confirmation.
+5. Run `ROTATE_PASSWORD` with confirmation.
+6. Run `VERIFY_SESSION`.
+7. Delete `ADP_TEMP_PASSWORD` immediately.
+8. Restore production only after successful fresh-session verification.
 
 ```powershell
-npm run dashboard
+gh secret set ADP_TEMP_PASSWORD
+gh workflow run manual-automation.yml -f action=SYNC_CREDENTIAL -f confirmation=I_UNDERSTAND
+gh workflow run manual-automation.yml -f action=ROTATE_PASSWORD -f confirmation=I_UNDERSTAND
+gh workflow run manual-automation.yml -f action=VERIFY_SESSION
+gh secret delete ADP_TEMP_PASSWORD
+```
+
+## 11. Scheduled-workflow inactivity
+
+GitHub can disable scheduled workflows in public repositories after 60 days without repository activity. A repository workflow cannot revive itself once disabled. Use an external weekly monitor that:
+
+- checks `Attendance In` and `Attendance Out` workflow state;
+- re-enables only workflows whose state is exactly `disabled_inactivity`;
+- never re-enables `disabled_manually` workflows;
+- never creates fake keepalive commits.
+
+Without an external monitor, check periodically and use:
+
+```powershell
+gh workflow enable attendance-in.yml
+gh workflow enable attendance-out.yml
+```
+
+## 12. Local operations
+
+```powershell
+npm.cmd run credential:status
+npm.cmd run credential:verify
+npm.cmd run credential:copy
+npm.cmd run dashboard
 Start-Process http://127.0.0.1:3000
 ```
 
-Set a random `DASHBOARD_AUTH_SECRET` if other local processes are not trusted, and send it as a Bearer token to the JSON endpoint. The dashboard never displays secrets or exact coordinates.
+The dashboard never displays credentials or exact coordinates and binds only to `127.0.0.1`.
