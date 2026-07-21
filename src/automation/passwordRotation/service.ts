@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { CredentialRepository } from '../../repositories/credentialRepository.js';
 import type { LockRepository } from '../../repositories/lockRepository.js';
 import type { RotationRepository } from '../../repositories/rotationRepository.js';
+import { logger } from '../../logging/logger.js';
 import { istParts } from '../../shared/time.js';
 import type { PasswordPolicy } from './passwordPolicy.js';
 import { generatePassword } from './passwordPolicy.js';
@@ -36,8 +37,13 @@ export class PasswordRotationService {
     const lockKey = `password-rotation:${this.dependencies.accountId}:${dateKey}`;
     const owner = randomUUID();
     if (!(await this.dependencies.locks.acquire(lockKey, owner, 30 * 60_000))) return 'SKIPPED';
-    const transition = (state: Parameters<RotationRepository['transition']>[1], message?: string) =>
-      this.dependencies.rotations.transition(run.idempotencyKey, state, message);
+    const transition = async (
+      state: Parameters<RotationRepository['transition']>[1],
+      message?: string,
+    ) => {
+      await this.dependencies.rotations.transition(run.idempotencyKey, state, message);
+      logger.info('Password rotation state changed', { state, message });
+    };
     try {
       await transition('LOCK_ACQUIRED');
       const metadata = await this.dependencies.credentials.metadata(this.dependencies.accountId);
@@ -47,6 +53,27 @@ export class PasswordRotationService {
       if (!metadata || !candidates) throw new Error('Current credential is unavailable');
       await transition('CURRENT_PASSWORD_LOADED');
       if (!(await this.dependencies.portal.verifyPassword(candidates.current))) {
+        if (
+          candidates.pending &&
+          (await this.dependencies.portal.verifyPassword(candidates.pending)) &&
+          !this.dependencies.portal.rotationRequired()
+        ) {
+          await transition('NEW_PASSWORD_VERIFIED', 'Recovered staged portal credential');
+          await this.dependencies.credentials.commitRotation({
+            accountId: this.dependencies.accountId,
+            expectedVersion: metadata.credentialVersion,
+            oldPassword: candidates.current,
+            newPassword: candidates.pending,
+            status: 'DATABASE_UPDATED',
+          });
+          await transition('DATABASE_UPDATED');
+          await this.dependencies.credentials.setRotationStatus(
+            this.dependencies.accountId,
+            'COMPLETED',
+          );
+          await transition('COMPLETED', 'Recovered after interrupted portal confirmation');
+          return 'COMPLETED';
+        }
         await transition(
           'MANUAL_INTERVENTION_REQUIRED',
           'Current credential could not be verified',

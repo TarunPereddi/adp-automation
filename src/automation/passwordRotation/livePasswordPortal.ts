@@ -85,25 +85,13 @@ export class LivePasswordPortal implements PasswordPortal {
       10_000,
     );
     await update.click();
-    await this.page
-      .waitForFunction(
-        () =>
-          !window.location.pathname.includes('/changepassword') ||
-          /password\s+(?:has been\s+)?(?:changed|updated)\s+successfully/i.test(
-            document.body?.innerText ?? '',
-          ),
-        { timeout: 30_000 },
-      )
-      .catch(() => undefined);
+    await new Promise((resolve) => setTimeout(resolve, 5_000));
     const pageText = await this.page.evaluate(() => document.body?.innerText ?? '');
     const rejected =
       /incorrect current password|password.*(?:invalid|cannot|must|should|required)|failed to (?:change|update)/i.test(
         pageText,
       );
-    const confirmed =
-      !this.page.url().includes('/changepassword') ||
-      /password\s+(?:has been\s+)?(?:changed|updated)\s+successfully/i.test(pageText);
-    if (rejected || !confirmed) return false;
+    if (rejected) return false;
     this.passwordChangeRequired = false;
     return true;
   }
