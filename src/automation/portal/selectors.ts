@@ -27,19 +27,29 @@ export const selectors = {
     verified: true,
     evidence: 'Live dashboard verified 2026-07-21 at /ng/dashboard',
   },
-  punchInButton: {
-    selector: '[data-testid="punch-in"], button[aria-label="Punch In"]',
-    verified: false,
-    evidence: 'Requires live portal validation',
+  punchButton: {
+    selector: 'sdf-button[aria-label="Punch"]',
+    verified: true,
+    evidence: 'Live dashboard Punch control verified 2026-07-22',
   },
-  punchOutButton: {
-    selector: '[data-testid="punch-out"], button[aria-label="Punch Out"]',
-    verified: false,
-    evidence: 'Requires live portal validation',
+  confirmPunchButton: {
+    selector: 'sdf-button[aria-label="Confirm punch"]',
+    verified: true,
+    evidence: 'Live Punch dialog confirmation control verified 2026-07-22',
   },
-  attendanceState: {
-    selector: '[data-testid="attendance-state"]',
-    verified: false,
-    evidence: 'Requires live portal validation',
+  punchInTime: {
+    selector: 'sdf-quick-stat[label="Punch In Time"]',
+    verified: true,
+    evidence: 'Live Punch Information stat verified 2026-07-22',
+  },
+  punchOutTime: {
+    selector: 'sdf-quick-stat[label="Punch Out Time"]',
+    verified: true,
+    evidence: 'Live Punch Information stat verified 2026-07-22',
+  },
+  punchLocation: {
+    selector: 'sdf-quick-stat[label="Location"]',
+    verified: true,
+    evidence: 'Live Punch dialog location stat verified 2026-07-22',
   },
 } satisfies Record<string, SelectorDefinition>;

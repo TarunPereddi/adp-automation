@@ -81,8 +81,12 @@ jobs:
         shell: bash
         run: |
           case "$MANUAL_ACTION" in
-            PUNCH_IN)  AUTOMATION_ACTION=PUNCH_IN npm run job ;;
-            PUNCH_OUT) AUTOMATION_ACTION=PUNCH_OUT npm run job ;;
+            PUNCH_IN)
+              PUNCH_IN_TIME="$(TZ=Asia/Kolkata date +%H:%M)" AUTOMATION_ACTION=PUNCH_IN npm run job
+              ;;
+            PUNCH_OUT)
+              PUNCH_OUT_TIME="$(TZ=Asia/Kolkata date +%H:%M)" AUTOMATION_ACTION=PUNCH_OUT npm run job
+              ;;
             DRY_RUN|CHECK_LOGIN|CHECK_CALENDAR|CHECK_ATTENDANCE)
               AUTOMATION_ACTION=PUNCH_IN npm run job ;;
             SYNC_CREDENTIAL)

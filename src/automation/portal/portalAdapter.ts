@@ -129,19 +129,23 @@ export class PortalAdapter {
     const authenticated = Boolean(
       await deepQuery(this.page, selectors.authenticatedMarker.selector),
     );
-    const stateElement = await deepQuery(this.page, selectors.attendanceState.selector);
-    const stateText = stateElement
-      ? await stateElement.evaluate((element) => element.textContent?.trim().toLowerCase() ?? '')
-      : '';
-    const hasPunchOut = Boolean(await deepQuery(this.page, selectors.punchOutButton.selector));
-    const hasPunchIn = Boolean(await deepQuery(this.page, selectors.punchInButton.selector));
-    const evidence = stateText ? [stateText.slice(0, 160)] : [];
-    if (hasPunchIn) evidence.push('punch-in-action-available');
-    if (hasPunchOut) evidence.push('punch-out-action-available');
+    const [punchInText, punchOutText] = await Promise.all([
+      this.readStat(selectors.punchInTime.selector),
+      this.readStat(selectors.punchOutTime.selector),
+    ]);
+    const punchInTime = normalizedPunchTime(punchInText);
+    const punchOutTime = normalizedPunchTime(punchOutText);
+    const hasPunchAction = Boolean(await deepQuery(this.page, selectors.punchButton.selector));
+    const evidence: string[] = [];
+    if (punchInText) evidence.push(`punch-in:${punchInText.slice(0, 40)}`);
+    if (punchOutText) evidence.push(`punch-out:${punchOutText.slice(0, 40)}`);
+    if (hasPunchAction) evidence.push('punch-action-available');
     return {
       authenticated,
-      punchedIn: /punched in|clocked in/.test(stateText) || (hasPunchOut && !hasPunchIn),
-      punchedOut: /punched out|clocked out|completed/.test(stateText),
+      punchedIn: Boolean(punchInTime),
+      punchedOut: Boolean(punchOutTime),
+      punchInTime,
+      punchOutTime,
       evidence,
     };
   }
@@ -157,18 +161,25 @@ export class PortalAdapter {
     const before = await this.readAttendanceState();
     const alreadyDone = action === 'PUNCH_IN' ? before.punchedIn : before.punchedOut;
     if (alreadyDone) return { ok: true, value: before };
-    const selector =
-      action === 'PUNCH_IN' ? selectors.punchInButton.selector : selectors.punchOutButton.selector;
-    const button = await deepQuery(this.page, selector);
+    const button = await deepQuery(this.page, selectors.punchButton.selector);
     if (!button)
       return {
         ok: false,
         failureCategory: 'SELECTOR_CHANGED',
-        message: 'Attendance action button not found',
+        message: 'Punch button not found',
       };
     await button.click();
-    await new Promise((resolve) => setTimeout(resolve, 2_000));
-    const after = await this.readAttendanceState();
+    const confirm = await waitForDeep(this.page, selectors.confirmPunchButton.selector, 10_000);
+    const location = await this.readStat(selectors.punchLocation.selector);
+    if (!location || /^[-:]+$/.test(location)) {
+      return {
+        ok: false,
+        failureCategory: 'ATTENDANCE_STATE_INVALID',
+        message: 'Punch dialog did not resolve the configured attendance location',
+      };
+    }
+    await confirm.click();
+    const after = await this.waitForAttendanceState(action, 20_000);
     const verified = action === 'PUNCH_IN' ? after.punchedIn : after.punchedOut;
     return verified
       ? { ok: true, value: after }
@@ -178,6 +189,34 @@ export class PortalAdapter {
           message: 'Portal state did not confirm the action',
         };
   }
+
+  private async readStat(selector: string): Promise<string> {
+    const element = await deepQuery(this.page, selector);
+    return element
+      ? element.evaluate((target) => target.textContent?.trim().replace(/\s+/g, ' ') ?? '')
+      : '';
+  }
+
+  private async waitForAttendanceState(
+    action: AttendanceAction,
+    timeoutMs: number,
+  ): Promise<AttendanceState> {
+    const deadline = Date.now() + timeoutMs;
+    let state = await this.readAttendanceState();
+    while (Date.now() < deadline) {
+      const verified = action === 'PUNCH_IN' ? state.punchedIn : state.punchedOut;
+      if (verified) return state;
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      state = await this.readAttendanceState();
+    }
+    return state;
+  }
+}
+
+function normalizedPunchTime(value: string): string | undefined {
+  const normalized = value.trim();
+  if (!normalized || /^[-:]+$/.test(normalized)) return undefined;
+  return normalized;
 }
 
 function challengeCategory(
