@@ -1,0 +1,49 @@
+{
+  "name": "adp-automation",
+  "version": "3.0.0",
+  "private": true,
+  "description": "Fail-closed ADP SecurTime attendance automation",
+  "engines": {
+    "node": ">=20.19"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "clean": "node scripts/clean.mjs",
+    "dashboard": "tsx src/dashboard/server.ts",
+    "credential:status": "tsx src/cli/credential.ts status",
+    "credential:copy": "tsx src/cli/credential.ts copy",
+    "credential:seed": "tsx src/cli/credential.ts seed",
+    "credential:show": "tsx src/cli/credential.ts show",
+    "credential:verify": "tsx src/cli/credential.ts verify",
+    "db:init": "tsx src/cli/initDatabase.ts",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "eslint .",
+    "job": "tsx src/jobs/automation.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "validate": "npm run format:check && npm run lint && npm run typecheck && npm test && npm run build"
+  },
+  "dependencies": {
+    "clipboardy": "^5.3.1",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "mongodb": "^7.5.0",
+    "puppeteer": "^25.3.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/express": "^5.0.6",
+    "@types/node": "^26.1.1",
+    "@types/supertest": "^7.2.0",
+    "eslint": "^10.7.0",
+    "prettier": "^3.9.5",
+    "supertest": "^7.2.2",
+    "tsx": "^4.23.1",
+    "typescript": "^6.0.0",
+    "typescript-eslint": "^8.64.0",
+    "vitest": "^4.1.10"
+  }
+}

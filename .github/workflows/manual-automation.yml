@@ -1,0 +1,97 @@
+name: Manual Automation
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: Safe diagnostic or explicit attendance action
+        required: true
+        default: DRY_RUN
+        type: choice
+        options:
+          - DRY_RUN
+          - CHECK_LOGIN
+          - CHECK_CALENDAR
+          - CHECK_ATTENDANCE
+          - PUNCH_IN
+          - PUNCH_OUT
+          - ROTATE_PASSWORD
+          - VERIFY_SESSION
+      confirmation:
+        description: Enter I_UNDERSTAND for a live attendance or rotation action
+        required: false
+        type: string
+
+concurrency:
+  group: manual-attendance-${{ inputs.action }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate live-action confirmation
+        env:
+          ACTION: ${{ inputs.action }}
+          CONFIRMATION: ${{ inputs.confirmation }}
+        run: |
+          case "$ACTION" in
+            PUNCH_IN|PUNCH_OUT|ROTATE_PASSWORD)
+              test "$CONFIRMATION" = "I_UNDERSTAND" || { echo "Live action requires confirmation=I_UNDERSTAND"; exit 1; }
+              ;;
+          esac
+
+  run:
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      NODE_ENV: production
+      ADP_USERNAME: ${{ secrets.ADP_USERNAME }}
+      ADP_ACCOUNT_ID: ${{ secrets.ATTENDANCE_ACCOUNT_ID }}
+      ADP_STORE_KEY: ${{ secrets.ADP_STORE_KEY }}
+      MONGODB_URI: ${{ secrets.MONGODB_URI }}
+      MONGODB_DATABASE: ${{ secrets.MONGODB_DATABASE }}
+      ADP_SECURITY_ANSWERS_JSON: ${{ secrets.ADP_SECURITY_ANSWERS_JSON }}
+      ATTENDANCE_LATITUDE: ${{ secrets.ATTENDANCE_LATITUDE }}
+      ATTENDANCE_LONGITUDE: ${{ secrets.ATTENDANCE_LONGITUDE }}
+      ATTENDANCE_LOCATION_ACCURACY_METERS: ${{ secrets.ATTENDANCE_LOCATION_ACCURACY_METERS }}
+      PORTAL_SELECTORS_VERIFIED: ${{ vars.PORTAL_SELECTORS_VERIFIED || 'false' }}
+      MANUAL_HOLIDAYS: ${{ vars.MANUAL_HOLIDAYS }}
+      MANUAL_LEAVE_DATES: ${{ vars.MANUAL_LEAVE_DATES }}
+      GITHUB_REPOSITORY: ${{ github.repository }}
+      MANUAL_ACTION: ${{ inputs.action }}
+      AUTOMATION_ENABLED: ${{ (inputs.action == 'PUNCH_IN' || inputs.action == 'PUNCH_OUT') && 'true' || 'false' }}
+      DRY_RUN: ${{ (inputs.action == 'PUNCH_IN' || inputs.action == 'PUNCH_OUT') && 'false' || 'true' }}
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - run: npm ci
+      - name: Run supported diagnostic or action
+        shell: bash
+        run: |
+          case "$MANUAL_ACTION" in
+            PUNCH_IN)  AUTOMATION_ACTION=PUNCH_IN npm run job ;;
+            PUNCH_OUT) AUTOMATION_ACTION=PUNCH_OUT npm run job ;;
+            DRY_RUN|CHECK_LOGIN|CHECK_CALENDAR|CHECK_ATTENDANCE)
+              AUTOMATION_ACTION=PUNCH_IN npm run job ;;
+            ROTATE_PASSWORD|VERIFY_SESSION)
+              echo "This action remains fail-closed until the corresponding live portal flow is verified."
+              exit 2
+              ;;
+          esac
+      - name: Upload sanitized failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: manual-failure-${{ github.run_id }}
+          path: failure/
+          if-no-files-found: ignore
+          retention-days: 7

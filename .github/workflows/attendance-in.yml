@@ -1,0 +1,53 @@
+name: Attendance In
+
+on:
+  schedule:
+    - cron: '30 3 * * 1-5'
+  workflow_dispatch:
+
+concurrency:
+  group: attendance-in
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  punch-in:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      NODE_ENV: production
+      ADP_USERNAME: ${{ secrets.ADP_USERNAME }}
+      ADP_ACCOUNT_ID: ${{ secrets.ATTENDANCE_ACCOUNT_ID }}
+      ADP_STORE_KEY: ${{ secrets.ADP_STORE_KEY }}
+      MONGODB_URI: ${{ secrets.MONGODB_URI }}
+      MONGODB_DATABASE: ${{ secrets.MONGODB_DATABASE }}
+      ADP_SECURITY_ANSWERS_JSON: ${{ secrets.ADP_SECURITY_ANSWERS_JSON }}
+      ATTENDANCE_LATITUDE: ${{ secrets.ATTENDANCE_LATITUDE }}
+      ATTENDANCE_LONGITUDE: ${{ secrets.ATTENDANCE_LONGITUDE }}
+      ATTENDANCE_LOCATION_ACCURACY_METERS: ${{ secrets.ATTENDANCE_LOCATION_ACCURACY_METERS }}
+      AUTOMATION_ENABLED: ${{ vars.AUTOMATION_ENABLED || 'false' }}
+      DRY_RUN: ${{ vars.DRY_RUN || 'true' }}
+      PORTAL_SELECTORS_VERIFIED: ${{ vars.PORTAL_SELECTORS_VERIFIED || 'false' }}
+      MANUAL_HOLIDAYS: ${{ vars.MANUAL_HOLIDAYS }}
+      MANUAL_LEAVE_DATES: ${{ vars.MANUAL_LEAVE_DATES }}
+      GITHUB_REPOSITORY: ${{ github.repository }}
+      AUTOMATION_ACTION: PUNCH_IN
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - run: npm ci
+      - run: npm run job
+      - name: Upload sanitized failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: attendance-in-failure-${{ github.run_id }}
+          path: failure/
+          if-no-files-found: ignore
+          retention-days: 7

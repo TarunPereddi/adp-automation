@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+  <body>
+    <login-shell></login-shell>
+    <script>
+      customElements.define(
+        'login-shell',
+        class extends HTMLElement {
+          connectedCallback() {
+            const root = this.attachShadow({ mode: 'open' });
+            root.innerHTML = `<input placeholder="Enter your email or username">
+              <input placeholder="Password" type="password">
+              <button class="login-page__primary-button">Sign in</button>`;
+          }
+        },
+      );
+    </script>
+  </body>
+</html>

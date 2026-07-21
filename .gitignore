@@ -1,0 +1,12 @@
+node_modules/
+dist/
+coverage/
+failure/
+.secrets/
+*.enc.json
+*.png
+.env
+.env.*
+!.env.example
+portal-session*.json
+npm-debug.log*
