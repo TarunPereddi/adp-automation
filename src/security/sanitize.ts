@@ -5,13 +5,15 @@ const bearer = /bearer\s+[a-z0-9._~+/=-]+/gi;
 const email = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi;
 const accountId =
   /((?:accountNo=|\/(?:getPunchesForStartAndEndDate|getEmployeeCalenderData|currentWeekHours)\/))\d+/gi;
+const coordinates = /((?:latitude|longitude)=)-?\d+(?:\.\d+)?/gi;
 
 export function sanitizeText(text: string): string {
   return text
     .replace(uri, '[REDACTED_MONGODB_URI]')
     .replace(bearer, 'Bearer [REDACTED]')
     .replace(email, '[REDACTED_EMAIL]')
-    .replace(accountId, '$1[REDACTED_ACCOUNT_ID]');
+    .replace(accountId, '$1[REDACTED_ACCOUNT_ID]')
+    .replace(coordinates, '$1[REDACTED_COORDINATE]');
 }
 
 export function sanitize(value: unknown, seen = new WeakSet<object>()): unknown {

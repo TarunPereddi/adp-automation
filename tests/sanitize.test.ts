@@ -27,4 +27,10 @@ describe('sanitization', () => {
       'https://example.test/api/regularization/getPunchesForStartAndEndDate/[REDACTED_ACCOUNT_ID]?accountNo=[REDACTED_ACCOUNT_ID]',
     );
   });
+
+  it('redacts attendance coordinates embedded in diagnostic URLs', () => {
+    expect(sanitizeText('save?latitude=17.4661607&longitude=78.2846192')).toBe(
+      'save?latitude=[REDACTED_COORDINATE]&longitude=[REDACTED_COORDINATE]',
+    );
+  });
 });
