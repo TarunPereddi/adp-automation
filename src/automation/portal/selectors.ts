@@ -52,6 +52,11 @@ export const selectors = {
     verified: true,
     evidence: 'Live Punch Information stat verified 2026-07-22',
   },
+  scheduledShift: {
+    selector: 'sdf-quick-stat[label="Scheduled Shift"]',
+    verified: true,
+    evidence: 'Live Punch Information hydration marker verified 2026-07-22',
+  },
   punchLocation: {
     selector:
       'sdf-flag-layout:has(sdf-icon[icon="location"]) .punch-dialog-row-value[slot="supporting-content"]',

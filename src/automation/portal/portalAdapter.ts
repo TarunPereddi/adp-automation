@@ -147,6 +147,13 @@ export class PortalAdapter {
         ]);
       }
     }
+    if (authenticated) {
+      await this.waitForMeaningfulStat(selectors.scheduledShift.selector, 10_000);
+      [punchInText, punchOutText] = await Promise.all([
+        this.readStat(selectors.punchInTime.selector),
+        this.readStat(selectors.punchOutTime.selector),
+      ]);
+    }
     const punchInTime = normalizedPunchTime(punchInText);
     const punchOutTime = normalizedPunchTime(punchOutText);
     const hasPunchAction = Boolean(await deepQuery(this.page, selectors.punchButton.selector));
@@ -239,6 +246,16 @@ export class PortalAdapter {
       state = await this.readAttendanceState();
     }
     return state;
+  }
+
+  private async waitForMeaningfulStat(selector: string, timeoutMs: number): Promise<string> {
+    const deadline = Date.now() + timeoutMs;
+    let value = await this.readStat(selector);
+    while (Date.now() < deadline && (!value || /^[-:]+$/.test(value))) {
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      value = await this.readStat(selector);
+    }
+    return value;
   }
 }
 
