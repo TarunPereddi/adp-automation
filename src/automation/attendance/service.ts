@@ -87,6 +87,8 @@ export class AttendanceService {
           action,
           failureCategory: login.failureCategory,
           challenge: login.challenge,
+          message: login.message,
+          portalUrl: page.url(),
         });
         process.exitCode = 1;
         return;
