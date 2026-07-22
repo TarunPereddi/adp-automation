@@ -180,7 +180,7 @@ export class PortalAdapter {
     if (hasPunchAction) evidence.push('punch-action-available');
     return {
       authenticated,
-      punchedIn: Boolean(punchInTime) || /^punch out$/i.test(punchActionText),
+      punchedIn: Boolean(punchInTime),
       punchedOut: Boolean(punchOutTime),
       punchInTime,
       punchOutTime,
@@ -197,7 +197,6 @@ export class PortalAdapter {
       };
     }
     const before = await this.readAttendanceState();
-    const beforePunchAction = await this.readVisibleStat(selectors.punchButton.selector);
     const alreadyDone = action === 'PUNCH_IN' ? before.punchedIn : before.punchedOut;
     if (alreadyDone) return { ok: true, value: before };
     const button = await deepQueryVisible(this.page, selectors.punchButton.selector);
@@ -237,15 +236,7 @@ export class PortalAdapter {
         confirmSelector,
       )
       .catch(() => undefined);
-    const after = await this.waitForAttendanceState(action, beforePunchAction, 20_000);
-    const verified = action === 'PUNCH_IN' ? after.punchedIn : after.punchedOut;
-    return verified
-      ? { ok: true, value: after }
-      : {
-          ok: false,
-          failureCategory: 'ATTENDANCE_STATE_INVALID',
-          message: 'Portal state did not confirm the action',
-        };
+    return this.verifyAttendancePersisted(action);
   }
 
   async getLeaveStatus(dateKey: string): Promise<CalendarResult> {
@@ -342,6 +333,33 @@ export class PortalAdapter {
     }
   }
 
+  private async verifyAttendancePersisted(
+    action: AttendanceAction,
+  ): Promise<PortalResult<AttendanceState>> {
+    try {
+      await this.page.reload({ waitUntil: 'domcontentloaded', timeout: 30_000 });
+      await waitForDeepVisible(this.page, selectors.authenticatedMarker.selector, 60_000);
+      const state = await this.waitForAttendanceState(action, 30_000);
+      const verified = action === 'PUNCH_IN' ? state.punchedIn : state.punchedOut;
+      return verified
+        ? { ok: true, value: state }
+        : {
+            ok: false,
+            failureCategory: 'ATTENDANCE_STATE_INVALID',
+            message: 'Fresh portal reload did not confirm a persisted attendance time',
+          };
+    } catch (error) {
+      return {
+        ok: false,
+        failureCategory: 'ATTENDANCE_STATE_INVALID',
+        message:
+          error instanceof Error
+            ? `Fresh portal verification failed: ${error.message}`
+            : 'Fresh portal verification failed',
+      };
+    }
+  }
+
   private async readStat(selector: string): Promise<string> {
     const element = await deepQuery(this.page, selector);
     return element
@@ -382,7 +400,6 @@ export class PortalAdapter {
 
   private async waitForAttendanceState(
     action: AttendanceAction,
-    beforePunchAction: string,
     timeoutMs: number,
   ): Promise<AttendanceState> {
     const deadline = Date.now() + timeoutMs;
@@ -390,16 +407,6 @@ export class PortalAdapter {
     while (Date.now() < deadline) {
       const verified = action === 'PUNCH_IN' ? state.punchedIn : state.punchedOut;
       if (verified) return state;
-      if (action === 'PUNCH_OUT' && /^punch out$/i.test(beforePunchAction)) {
-        const currentPunchAction = await this.readVisibleStat(selectors.punchButton.selector);
-        if (currentPunchAction && !/^punch out$/i.test(currentPunchAction)) {
-          return {
-            ...state,
-            punchedOut: true,
-            evidence: [...state.evidence, `punch-action-transition:${currentPunchAction}`],
-          };
-        }
-      }
       await new Promise((resolve) => setTimeout(resolve, 500));
       state = await this.readAttendanceState();
     }
@@ -417,10 +424,10 @@ export class PortalAdapter {
   }
 }
 
-function normalizedPunchTime(value: string): string | undefined {
+export function normalizedPunchTime(value: string): string | undefined {
   const normalized = value.trim();
   if (!normalized || /^[-:]+$/.test(normalized)) return undefined;
-  return normalized;
+  return normalized.match(/(?:[01]?\d|2[0-3]):[0-5]\d(?::[0-5]\d)?(?:\s?[AP]M)?/i)?.[0];
 }
 
 function challengeCategory(

@@ -15,6 +15,7 @@ import type { AttendanceAction, AutomationRun } from '../../types/domain.js';
 import { BrowserManager } from '../browser/browserManager.js';
 import { captureFailure } from '../browser/artifacts.js';
 import { PortalAdapter } from '../portal/portalAdapter.js';
+import { attendanceAttemptKey } from './idempotency.js';
 import { decideAttendance } from './decision.js';
 
 interface AttendanceDependencies {
@@ -38,12 +39,14 @@ export class AttendanceService {
     const runId = randomUUID();
     const baseKey = `${config.portal.accountId}:${dateKey}:${action}`;
     const explicitManualRun = process.env.MANUAL_ACTION === action && config.github.runId;
-    const idempotencyKey =
-      config.dryRun || !config.automationEnabled
-        ? `${baseKey}:DRY_RUN:${runId}`
-        : explicitManualRun
-          ? `${baseKey}:MANUAL:${config.github.runId}`
-          : baseKey;
+    const idempotencyKey = attendanceAttemptKey({
+      baseKey,
+      runId,
+      githubRunId: config.github.runId,
+      githubRunAttempt: process.env.GITHUB_RUN_ATTEMPT,
+      manual: Boolean(explicitManualRun),
+      safeDisabled: config.dryRun || !config.automationEnabled,
+    });
     const lockKey = `attendance:${config.portal.accountId}:${dateKey}:${action}`;
     const owner = `${process.env.GITHUB_RUN_ID ?? 'local'}:${runId}`;
     const run: AutomationRun = {
@@ -64,7 +67,8 @@ export class AttendanceService {
     let portal: PortalAdapter | undefined;
     try {
       if (!(await runs.start(run))) {
-        logger.info('Idempotent attendance run already exists', { action, dateKey });
+        logger.error('Duplicate attendance workflow attempt blocked', { action, dateKey });
+        process.exitCode = 1;
         return;
       }
       if (weekday === 0 || weekday === 6) {

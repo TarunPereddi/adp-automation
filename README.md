@@ -69,7 +69,8 @@ npm.cmd run dashboard
 ## Production safeguards
 
 - Repository permissions are read-only inside workflows.
-- MongoDB locks and unique idempotency keys prevent duplicate submissions.
+- MongoDB locks prevent concurrent submissions, and workflow-attempt-specific idempotency keys prevent rerun collisions without letting a failed attempt block the entire day.
+- Punch success requires a fresh portal reload with a persisted, parseable attendance time; a changed button label alone is never accepted.
 - Credentials use AES-256-GCM; the encryption key is never stored in MongoDB.
 - A replacement password is staged encrypted before portal submission and promoted only after a fresh login succeeds.
 - CAPTCHA, OTP, MFA, security-question, and unknown-device states require manual intervention.

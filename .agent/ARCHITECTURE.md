@@ -19,7 +19,7 @@ Each production workflow builds once, runs the password-expiry check, and then r
 
 `AttendanceService` in `src/automation/attendance/service.ts` owns orchestration:
 
-1. Acquire a MongoDB lock and create an idempotent run.
+1. Acquire a MongoDB lock and create a workflow-attempt-specific idempotent run. A failed attempt cannot consume the whole day's key.
 2. Skip weekends, configured mandatory holidays, and optional manual leave overrides before login.
 3. Decrypt the current credential from MongoDB.
 4. Launch Puppeteer with IST timezone and configured geolocation.
@@ -30,7 +30,7 @@ Each production workflow builds once, runs the password-expiry check, and then r
 9. Restore an authenticated dashboard through the login route because direct dashboard navigation can invalidate the ADP SPA session.
 10. Apply time-window, already-punched, selector, credential, and calendar decisions.
 11. Submit the correct Punch or Punch Out confirmation.
-12. Require positive post-action portal evidence before recording success.
+12. Reload the portal and require a persisted, parseable Punch In or Punch Out time before recording success. Button-label transitions are evidence only and never prove persistence.
 
 ## Password rotation flow
 

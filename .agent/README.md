@@ -28,7 +28,8 @@ As of 2026-07-22:
 - Unknown means no punch.
 - Calendar and weekend preflight runs before loading credentials or opening a browser when possible.
 - Live leave lookup must succeed before a workday can be confirmed.
-- A portal action is successful only with positive post-action state evidence.
+- A portal action is successful only when a fresh portal reload exposes a persisted, parseable attendance time; button-label transitions never count as success.
+- Attendance idempotency is scoped to one GitHub workflow attempt, so a failed attempt cannot block a later attempt for the same day.
 - Password rotation occurs only when ADP requires it, never on calendar dates.
 - A generated password is encrypted and staged before portal submission.
 - MongoDB promotion occurs only after fresh-session verification.

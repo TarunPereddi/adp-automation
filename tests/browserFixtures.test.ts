@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises';
 import puppeteer from 'puppeteer';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { classifyChallenge } from '../src/automation/portal/challenges.js';
+import { normalizedPunchTime } from '../src/automation/portal/portalAdapter.js';
 import { deepQuery, deepQueryVisible, typeDeep } from '../src/automation/portal/shadowDom.js';
 
 describe('browser fixtures', () => {
@@ -42,5 +43,16 @@ describe('browser fixtures', () => {
     const button = await deepQueryVisible(page, 'sdf-button[aria-label="Punch"]');
     expect(await button?.evaluate((element) => element.textContent?.trim())).toBe('Punch Out');
     await page.close();
+  });
+
+  it('does not treat labels or button transitions as persisted punch times', () => {
+    expect(normalizedPunchTime('Punch In Time')).toBeUndefined();
+    expect(normalizedPunchTime('Punch Out')).toBeUndefined();
+    expect(normalizedPunchTime(':')).toBeUndefined();
+  });
+
+  it('extracts a real persisted portal time', () => {
+    expect(normalizedPunchTime('Punch In Time 09:03 AM')).toBe('09:03 AM');
+    expect(normalizedPunchTime('18:07:12')).toBe('18:07:12');
   });
 });
